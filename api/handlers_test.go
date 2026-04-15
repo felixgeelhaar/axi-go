@@ -328,3 +328,122 @@ func TestRegisterPlugin_BadRequest(t *testing.T) {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+// --- Approval flow tests ---
+
+func TestExecuteAction_ExternalEffect_PausesForApproval(t *testing.T) {
+	srv, actionExecReg := setupTestServer(t)
+
+	// Register a plugin with an external-effect action.
+	plugin := api.RegisterPluginRequest{
+		PluginID: "ext.plugin",
+		Actions: []api.ActionDTO{{
+			Name:        "send-email",
+			Description: "Sends an email (external effect)",
+			ExecutorRef: "exec.email",
+			EffectLevel: "external",
+		}},
+	}
+	doRequest(srv, "POST", "/api/v1/plugins", plugin)
+
+	actionExecReg.Register("exec.email", &stubActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Data: "sent", ContentType: "text/plain"}, nil, nil
+		},
+	})
+
+	// Execute — should pause at awaiting_approval.
+	w := doRequest(srv, "POST", "/api/v1/actions/execute", api.ExecuteActionRequest{ActionName: "send-email"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := decodeJSON[api.ExecuteActionResponse](t, w)
+	if resp.Status != "awaiting_approval" {
+		t.Fatalf("expected awaiting_approval, got %s", resp.Status)
+	}
+	if !resp.RequiresApproval {
+		t.Error("expected requires_approval to be true")
+	}
+
+	// Approve — should complete execution.
+	w = doRequest(srv, "POST", "/api/v1/sessions/"+resp.SessionID+"/approve", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	approved := decodeJSON[api.ExecuteActionResponse](t, w)
+	if approved.Status != "succeeded" {
+		t.Errorf("expected succeeded, got %s", approved.Status)
+	}
+	if approved.Result == nil || approved.Result.Data != "sent" {
+		t.Error("expected result data 'sent'")
+	}
+}
+
+func TestExecuteAction_ExternalEffect_Rejected(t *testing.T) {
+	srv, actionExecReg := setupTestServer(t)
+
+	plugin := api.RegisterPluginRequest{
+		PluginID: "rej.plugin",
+		Actions: []api.ActionDTO{{
+			Name:        "delete-account",
+			Description: "Deletes an account (external effect)",
+			ExecutorRef: "exec.delete",
+			EffectLevel: "external",
+		}},
+	}
+	doRequest(srv, "POST", "/api/v1/plugins", plugin)
+
+	actionExecReg.Register("exec.delete", &stubActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Data: "deleted"}, nil, nil
+		},
+	})
+
+	// Execute — pauses.
+	w := doRequest(srv, "POST", "/api/v1/actions/execute", api.ExecuteActionRequest{ActionName: "delete-account"})
+	resp := decodeJSON[api.ExecuteActionResponse](t, w)
+	if resp.Status != "awaiting_approval" {
+		t.Fatalf("expected awaiting_approval, got %s", resp.Status)
+	}
+
+	// Reject.
+	w = doRequest(srv, "POST", "/api/v1/sessions/"+resp.SessionID+"/reject", api.RejectSessionRequest{Reason: "too dangerous"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	rejected := decodeJSON[api.ExecuteActionResponse](t, w)
+	if rejected.Status != "rejected" {
+		t.Errorf("expected rejected, got %s", rejected.Status)
+	}
+	if rejected.Failure == nil || rejected.Failure.Code != "REJECTED" {
+		t.Error("expected REJECTED failure code")
+	}
+}
+
+func TestApproveSession_NotAwaitingApproval(t *testing.T) {
+	srv, actionExecReg := setupTestServer(t)
+
+	plugin := api.RegisterPluginRequest{
+		PluginID: "safe.plugin",
+		Actions:  []api.ActionDTO{{Name: "safe-action", ExecutorRef: "exec.safe"}},
+	}
+	doRequest(srv, "POST", "/api/v1/plugins", plugin)
+	actionExecReg.Register("exec.safe", &stubActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Data: "ok"}, nil, nil
+		},
+	})
+
+	// Execute — completes immediately (no approval needed).
+	w := doRequest(srv, "POST", "/api/v1/actions/execute", api.ExecuteActionRequest{ActionName: "safe-action"})
+	resp := decodeJSON[api.ExecuteActionResponse](t, w)
+	if resp.Status != "succeeded" {
+		t.Fatalf("expected succeeded, got %s", resp.Status)
+	}
+
+	// Try to approve a succeeded session — should fail.
+	w = doRequest(srv, "POST", "/api/v1/sessions/"+resp.SessionID+"/approve", nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}

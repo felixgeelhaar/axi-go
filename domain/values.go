@@ -148,12 +148,14 @@ type EvidenceRecord struct {
 type ExecutionStatus string
 
 const (
-	StatusPending   ExecutionStatus = "pending"
-	StatusValidated ExecutionStatus = "validated"
-	StatusResolved  ExecutionStatus = "resolved"
-	StatusRunning   ExecutionStatus = "running"
-	StatusSucceeded ExecutionStatus = "succeeded"
-	StatusFailed    ExecutionStatus = "failed"
+	StatusPending          ExecutionStatus = "pending"
+	StatusValidated        ExecutionStatus = "validated"
+	StatusResolved         ExecutionStatus = "resolved"
+	StatusAwaitingApproval ExecutionStatus = "awaiting_approval"
+	StatusRejected         ExecutionStatus = "rejected"
+	StatusRunning          ExecutionStatus = "running"
+	StatusSucceeded        ExecutionStatus = "succeeded"
+	StatusFailed           ExecutionStatus = "failed"
 )
 
 // ContributionStatus represents the state of a plugin contribution.

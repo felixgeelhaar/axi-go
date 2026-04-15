@@ -27,14 +27,16 @@ type ExecuteActionInput struct {
 
 // ExecuteActionOutput is the output of the use case.
 type ExecuteActionOutput struct {
-	SessionID domain.ExecutionSessionID
-	Status    domain.ExecutionStatus
-	Result    *domain.ExecutionResult
-	Failure   *domain.FailureReason
-	Evidence  []domain.EvidenceRecord
+	SessionID        domain.ExecutionSessionID
+	Status           domain.ExecutionStatus
+	RequiresApproval bool
+	Result           *domain.ExecutionResult
+	Failure          *domain.FailureReason
+	Evidence         []domain.EvidenceRecord
 }
 
-// Execute runs an action and returns the execution result.
+// Execute runs an action. If the action requires approval (external effects),
+// the session pauses at AwaitingApproval and the output indicates this.
 func (uc *ExecuteActionUseCase) Execute(ctx context.Context, input ExecuteActionInput) (*ExecuteActionOutput, error) {
 	sessionID := uc.IDGen.GenerateSessionID()
 
@@ -44,8 +46,6 @@ func (uc *ExecuteActionUseCase) Execute(ctx context.Context, input ExecuteAction
 	}
 
 	if err := uc.ExecutionService.Execute(ctx, session); err != nil {
-		// Persist the session even on error (it may have partial state).
-		// Save error is secondary to the execution error, but we wrap both.
 		if saveErr := uc.SessionRepo.Save(session); saveErr != nil {
 			return nil, fmt.Errorf("execution failed: %w (also failed to persist session: %v)", err, saveErr)
 		}
@@ -56,11 +56,57 @@ func (uc *ExecuteActionUseCase) Execute(ctx context.Context, input ExecuteAction
 		return nil, fmt.Errorf("failed to persist session: %w", err)
 	}
 
+	return outputFromSession(session), nil
+}
+
+// ApproveSession approves a session awaiting approval and resumes execution.
+func (uc *ExecuteActionUseCase) ApproveSession(ctx context.Context, id domain.ExecutionSessionID) (*ExecuteActionOutput, error) {
+	session, err := uc.SessionRepo.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := session.Approve(); err != nil {
+		return nil, &domain.ErrValidation{Message: err.Error()}
+	}
+
+	if err := uc.ExecutionService.Resume(ctx, session); err != nil {
+		_ = uc.SessionRepo.Save(session)
+		return nil, fmt.Errorf("execution failed after approval: %w", err)
+	}
+
+	if err := uc.SessionRepo.Save(session); err != nil {
+		return nil, fmt.Errorf("failed to persist session: %w", err)
+	}
+
+	return outputFromSession(session), nil
+}
+
+// RejectSession rejects a session awaiting approval.
+func (uc *ExecuteActionUseCase) RejectSession(id domain.ExecutionSessionID, reason string) (*ExecuteActionOutput, error) {
+	session, err := uc.SessionRepo.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := session.Reject(domain.FailureReason{Code: "REJECTED", Message: reason}); err != nil {
+		return nil, &domain.ErrValidation{Message: err.Error()}
+	}
+
+	if err := uc.SessionRepo.Save(session); err != nil {
+		return nil, fmt.Errorf("failed to persist session: %w", err)
+	}
+
+	return outputFromSession(session), nil
+}
+
+func outputFromSession(session *domain.ExecutionSession) *ExecuteActionOutput {
 	return &ExecuteActionOutput{
-		SessionID: session.ID(),
-		Status:    session.Status(),
-		Result:    session.Result(),
-		Failure:   session.Failure(),
-		Evidence:  session.Evidence(),
-	}, nil
+		SessionID:        session.ID(),
+		Status:           session.Status(),
+		RequiresApproval: session.RequiresApproval(),
+		Result:           session.Result(),
+		Failure:          session.Failure(),
+		Evidence:         session.Evidence(),
+	}
 }

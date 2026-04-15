@@ -76,6 +76,30 @@ func (s *Server) getSession(c *Context) {
 	c.JSON(http.StatusOK, SessionResponseFromDomain(session))
 }
 
+func (s *Server) approveSession(c *Context) {
+	id := domain.ExecutionSessionID(c.Param("id"))
+	output, err := s.executeAction.ApproveSession(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
+		return
+	}
+	c.JSON(http.StatusOK, ExecuteActionResponseFromOutput(output))
+}
+
+func (s *Server) rejectSession(c *Context) {
+	id := domain.ExecutionSessionID(c.Param("id"))
+	var req RejectSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.Reason = "rejected"
+	}
+	output, err := s.executeAction.RejectSession(id, req.Reason)
+	if err != nil {
+		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
+		return
+	}
+	c.JSON(http.StatusOK, ExecuteActionResponseFromOutput(output))
+}
+
 func (s *Server) listCapabilities(c *Context) {
 	capabilities := s.capabilityRepo.List()
 	items := make([]CapabilityResponse, len(capabilities))

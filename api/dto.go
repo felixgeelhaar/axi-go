@@ -79,11 +79,16 @@ type CapabilityResponse struct {
 }
 
 type ExecuteActionResponse struct {
-	SessionID string              `json:"session_id"`
-	Status    string              `json:"status"`
-	Result    *ExecutionResultDTO `json:"result,omitempty"`
-	Failure   *FailureReasonDTO   `json:"failure,omitempty"`
-	Evidence  []EvidenceRecordDTO `json:"evidence"`
+	SessionID        string              `json:"session_id"`
+	Status           string              `json:"status"`
+	RequiresApproval bool                `json:"requires_approval,omitempty"`
+	Result           *ExecutionResultDTO `json:"result,omitempty"`
+	Failure          *FailureReasonDTO   `json:"failure,omitempty"`
+	Evidence         []EvidenceRecordDTO `json:"evidence"`
+}
+
+type RejectSessionRequest struct {
+	Reason string `json:"reason"`
 }
 
 type ExecutionResultDTO struct {
@@ -201,9 +206,10 @@ func CapabilityResponseFromDomain(c *domain.CapabilityDefinition) CapabilityResp
 
 func ExecuteActionResponseFromOutput(o *application.ExecuteActionOutput) ExecuteActionResponse {
 	resp := ExecuteActionResponse{
-		SessionID: string(o.SessionID),
-		Status:    string(o.Status),
-		Evidence:  make([]EvidenceRecordDTO, len(o.Evidence)),
+		SessionID:        string(o.SessionID),
+		Status:           string(o.Status),
+		RequiresApproval: o.RequiresApproval,
+		Evidence:         make([]EvidenceRecordDTO, len(o.Evidence)),
 	}
 	if o.Result != nil {
 		resp.Result = &ExecutionResultDTO{Data: o.Result.Data, Summary: o.Result.Summary, ContentType: o.Result.ContentType}

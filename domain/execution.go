@@ -61,16 +61,16 @@ func NewActionExecutionService(
 	}
 }
 
-// Execute runs the full execution flow on a session.
-// Flow: Validate → Resolve → Run → Succeed/Fail
+// Execute runs the execution flow on a session.
+// For actions with EffectExternal, the session pauses at AwaitingApproval
+// and must be resumed via Resume() after approval. Otherwise runs to completion.
 func (s *ActionExecutionService) Execute(ctx context.Context, session *ExecutionSession) error {
-	// Load the action definition.
 	action, err := s.actionRepo.GetByName(session.ActionName())
 	if err != nil {
 		return &ErrNotFound{Entity: "action", ID: string(session.ActionName())}
 	}
 
-	// Validate input against contract.
+	// Validate input.
 	if err := s.validator.Validate(action.InputContract(), session.Input()); err != nil {
 		return &ErrValidation{Message: fmt.Sprintf("input validation failed: %v", err)}
 	}
@@ -91,18 +91,53 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 		return err
 	}
 
-	// Build capability invoker from resolved capabilities.
+	// Check if approval is required for external effects.
+	if action.EffectProfile().Level == EffectExternal {
+		if err := session.MarkAwaitingApproval(); err != nil {
+			return err
+		}
+		return nil // Paused — caller must approve then call Resume().
+	}
+
+	// No approval needed — execute immediately.
+	return s.run(ctx, session, action)
+}
+
+// Resume continues execution of a session that was approved.
+// The session must be in Running status (after Approve() was called).
+func (s *ActionExecutionService) Resume(ctx context.Context, session *ExecutionSession) error {
+	if session.Status() != StatusRunning {
+		return fmt.Errorf("cannot resume session in %s status", session.Status())
+	}
+
+	action, err := s.actionRepo.GetByName(session.ActionName())
+	if err != nil {
+		return &ErrNotFound{Entity: "action", ID: string(session.ActionName())}
+	}
+
+	return s.run(ctx, session, action)
+}
+
+// run executes the action (Resolved/Approved → Running → Succeeded/Failed).
+func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSession, action *ActionDefinition) error {
+	// Build invoker.
+	resolvedCaps, err := s.resolutionService.Resolve(action.Requirements())
+	if err != nil {
+		return fmt.Errorf("capability resolution failed: %w", err)
+	}
 	invoker, err := s.buildInvoker(ctx, resolvedCaps)
 	if err != nil {
 		return fmt.Errorf("failed to build capability invoker: %w", err)
 	}
 
-	// Transition to running.
-	if err := session.MarkRunning(); err != nil {
-		return err
+	// Transition to running (if not already — approved sessions are already Running).
+	if session.Status() != StatusRunning {
+		if err := session.MarkRunning(); err != nil {
+			return err
+		}
 	}
 
-	// Execute the action.
+	// Execute.
 	executor, err := s.actionExecutors.GetActionExecutor(action.ExecutionBinding())
 	if err != nil {
 		failErr := session.Fail(FailureReason{Code: "EXECUTOR_NOT_FOUND", Message: err.Error()})
@@ -121,7 +156,7 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 		if err := session.Fail(FailureReason{Code: "EXECUTION_ERROR", Message: execErr.Error()}); err != nil {
 			return err
 		}
-		return nil // Failure is a valid outcome, not an error.
+		return nil
 	}
 
 	return session.Succeed(result)
@@ -140,7 +175,6 @@ func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities 
 	}, nil
 }
 
-// boundInvoker implements CapabilityInvoker by dispatching to registered executors.
 type boundInvoker struct {
 	ctx          context.Context
 	capabilities map[CapabilityName]*CapabilityDefinition

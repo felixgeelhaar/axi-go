@@ -5,12 +5,14 @@ import (
 	"fmt"
 )
 
-// validTransitions defines allowed state transitions for ExecutionSession.
+// validTransitions defines the primary (happy-path) state transitions.
+// Special cases (Fail, Reject, AwaitingApproval→Running) are handled explicitly.
 var validTransitions = map[ExecutionStatus]ExecutionStatus{
-	StatusPending:   StatusValidated,
-	StatusValidated: StatusResolved,
-	StatusResolved:  StatusRunning,
-	StatusRunning:   StatusSucceeded, // or StatusFailed, checked separately
+	StatusPending:          StatusValidated,
+	StatusValidated:        StatusResolved,
+	StatusResolved:         StatusRunning,   // direct path (no approval needed)
+	StatusAwaitingApproval: StatusRunning,   // after approval
+	StatusRunning:          StatusSucceeded, // or StatusFailed, checked separately
 }
 
 // ExecutionSession is the aggregate root for one action execution.
@@ -21,6 +23,7 @@ type ExecutionSession struct {
 
 	status ExecutionStatus
 
+	requiresApproval     bool
 	resolvedCapabilities []CapabilityName
 	evidence             []EvidenceRecord
 
@@ -62,7 +65,37 @@ func (s *ExecutionSession) MarkResolved(capabilities []CapabilityName) error {
 	return nil
 }
 
-// MarkRunning transitions Resolved → Running.
+// MarkAwaitingApproval transitions Resolved → AwaitingApproval.
+// Used for actions with external effects that require human-in-the-loop approval.
+func (s *ExecutionSession) MarkAwaitingApproval() error {
+	if s.status != StatusResolved {
+		return fmt.Errorf("cannot transition from %s to %s", s.status, StatusAwaitingApproval)
+	}
+	s.status = StatusAwaitingApproval
+	s.requiresApproval = true
+	return nil
+}
+
+// Approve transitions AwaitingApproval → Running.
+func (s *ExecutionSession) Approve() error {
+	if s.status != StatusAwaitingApproval {
+		return fmt.Errorf("cannot approve session in %s status", s.status)
+	}
+	s.status = StatusRunning
+	return nil
+}
+
+// Reject transitions AwaitingApproval → Rejected with a reason.
+func (s *ExecutionSession) Reject(reason FailureReason) error {
+	if s.status != StatusAwaitingApproval {
+		return fmt.Errorf("cannot reject session in %s status", s.status)
+	}
+	s.status = StatusRejected
+	s.failure = &reason
+	return nil
+}
+
+// MarkRunning transitions Resolved → Running (skipping approval).
 func (s *ExecutionSession) MarkRunning() error {
 	return s.transitionTo(StatusRunning)
 }
@@ -106,6 +139,7 @@ func (s *ExecutionSession) ID() ExecutionSessionID   { return s.id }
 func (s *ExecutionSession) ActionName() ActionName   { return s.actionName }
 func (s *ExecutionSession) Input() any               { return s.input }
 func (s *ExecutionSession) Status() ExecutionStatus  { return s.status }
+func (s *ExecutionSession) RequiresApproval() bool   { return s.requiresApproval }
 func (s *ExecutionSession) Result() *ExecutionResult { return s.result }
 func (s *ExecutionSession) Failure() *FailureReason  { return s.failure }
 

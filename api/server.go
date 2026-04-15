@@ -44,6 +44,8 @@ func (s *Server) setupRoutes() {
 	v1.GET("/actions/{name}", s.getAction)
 	v1.POST("/actions/execute", s.handleExecuteAction)
 	v1.GET("/sessions/{id}", s.getSession)
+	v1.POST("/sessions/{id}/approve", s.approveSession)
+	v1.POST("/sessions/{id}/reject", s.rejectSession)
 	v1.GET("/capabilities", s.listCapabilities)
 	v1.POST("/plugins", s.handleRegisterPlugin)
 }
