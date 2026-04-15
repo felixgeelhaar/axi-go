@@ -81,9 +81,9 @@ func (e *greetExecutor) Execute(_ context.Context, input any, caps domain.Capabi
 
 	msg := fmt.Sprintf("Hello, %s!", upper)
 	return domain.ExecutionResult{
-			Data:        msg,
+			Data:        map[string]any{"message": msg},
 			Summary:     "Greeted " + name,
-			ContentType: "text/plain",
+			ContentType: "application/json",
 		}, []domain.EvidenceRecord{
 			{Kind: "invocation", Source: "greet", Value: map[string]any{"name": name, "upper": upper}},
 		}, nil
