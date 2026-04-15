@@ -8,24 +8,28 @@ import (
 	"github.com/felixgeelhaar/axi-go/domain"
 )
 
+func (s *Server) healthCheck(c *Context) {
+	c.JSON(http.StatusOK, HealthResponse{Status: "ok", Version: "0.1.0"})
+}
+
 func (s *Server) listActions(c *Context) {
 	actions := s.actionRepo.List()
-	resp := make([]ActionResponse, len(actions))
+	items := make([]ActionResponse, len(actions))
 	for i, a := range actions {
-		resp[i] = ActionResponseFromDomain(a)
+		items[i] = ActionResponseFromDomain(a)
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, ListResponse[ActionResponse]{Items: items, Count: len(items)})
 }
 
 func (s *Server) getAction(c *Context) {
 	name, err := domain.NewActionName(c.Param("name"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, errorResponseFromErr(err))
 		return
 	}
 	action, err := s.actionRepo.GetByName(name)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
+		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
 		return
 	}
 	c.JSON(http.StatusOK, ActionResponseFromDomain(action))
@@ -34,17 +38,17 @@ func (s *Server) getAction(c *Context) {
 func (s *Server) handleExecuteAction(c *Context) {
 	var req ExecuteActionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request body: " + err.Error(), ErrorCode: "validation_error"})
 		return
 	}
 	if req.ActionName == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "action_name is required"})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "action_name is required", ErrorCode: "validation_error"})
 		return
 	}
 
 	actionName, err := domain.NewActionName(req.ActionName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, errorResponseFromErr(err))
 		return
 	}
 
@@ -55,7 +59,7 @@ func (s *Server) handleExecuteAction(c *Context) {
 
 	output, err := s.executeAction.Execute(c.Request.Context(), input)
 	if err != nil {
-		c.JSON(domainErrorStatus(err), ErrorResponse{Error: err.Error()})
+		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
 		return
 	}
 
@@ -66,7 +70,7 @@ func (s *Server) getSession(c *Context) {
 	id := domain.ExecutionSessionID(c.Param("id"))
 	session, err := s.sessionRepo.Get(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
+		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
 		return
 	}
 	c.JSON(http.StatusOK, SessionResponseFromDomain(session))
@@ -74,38 +78,40 @@ func (s *Server) getSession(c *Context) {
 
 func (s *Server) listCapabilities(c *Context) {
 	capabilities := s.capabilityRepo.List()
-	resp := make([]CapabilityResponse, len(capabilities))
+	items := make([]CapabilityResponse, len(capabilities))
 	for i, cap := range capabilities {
-		resp[i] = CapabilityResponseFromDomain(cap)
+		items[i] = CapabilityResponseFromDomain(cap)
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, ListResponse[CapabilityResponse]{Items: items, Count: len(items)})
 }
 
 func (s *Server) handleRegisterPlugin(c *Context) {
 	var req RegisterPluginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request body: " + err.Error(), ErrorCode: "validation_error"})
 		return
 	}
 	if req.PluginID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "plugin_id is required"})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "plugin_id is required", ErrorCode: "validation_error"})
 		return
 	}
 
 	contribution, err := req.ToDomain()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error(), ErrorCode: "validation_error"})
 		return
 	}
 
 	if err := s.registerPlugin.Execute(contribution); err != nil {
-		c.JSON(domainErrorStatus(err), ErrorResponse{Error: err.Error()})
+		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
 		return
 	}
 
-	c.JSON(http.StatusCreated, map[string]string{
-		"plugin_id": req.PluginID,
-		"status":    "active",
+	c.JSON(http.StatusCreated, RegisterPluginResponse{
+		PluginID:    req.PluginID,
+		Status:      string(domain.ContributionActive),
+		ActionCount: len(req.Actions),
+		CapCount:    len(req.Capabilities),
 	})
 }
 

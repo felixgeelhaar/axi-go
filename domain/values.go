@@ -44,14 +44,18 @@ func NewPluginID(s string) (PluginID, error) {
 	return PluginID(s), nil
 }
 
-// Contract represents an input or output contract (abstract, can be JSON Schema or struct-based).
+// Contract represents an input or output contract for an action or capability.
 type Contract struct {
 	Fields []ContractField
 }
 
+// ContractField describes a single field in a contract.
 type ContractField struct {
-	Name     string
-	Required bool
+	Name        string // Field name (required).
+	Type        string // Type hint: "string", "number", "boolean", "object", "array". Empty means any.
+	Description string // Human/agent-readable description of what this field is for.
+	Required    bool   // Whether this field must be present.
+	Example     any    // Example value for documentation and agent guidance.
 }
 
 func NewContract(fields []ContractField) Contract {
@@ -123,8 +127,9 @@ type IdempotencyProfile struct {
 type InvocationInput = any
 
 type ExecutionResult struct {
-	Data    any
-	Summary string
+	Data        any
+	Summary     string
+	ContentType string // MIME type hint for agents: "text/plain", "application/json", etc.
 }
 
 type FailureReason struct {
@@ -133,9 +138,10 @@ type FailureReason struct {
 }
 
 type EvidenceRecord struct {
-	Kind   string
-	Source string
-	Value  any
+	Kind      string
+	Source    string
+	Value     any
+	Timestamp int64 // Unix milliseconds. Zero means not set.
 }
 
 // ExecutionStatus represents the state of an execution session.

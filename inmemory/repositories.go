@@ -2,7 +2,6 @@
 package inmemory
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/felixgeelhaar/axi-go/domain"
@@ -33,7 +32,7 @@ func (r *ActionDefinitionRepository) GetByName(name domain.ActionName) (*domain.
 	defer r.mu.RUnlock()
 	a, ok := r.actions[name]
 	if !ok {
-		return nil, fmt.Errorf("action %q not found", name)
+		return nil, &domain.ErrNotFound{Entity: "action", ID: string(name)}
 	}
 	return a, nil
 }
@@ -79,7 +78,7 @@ func (r *CapabilityDefinitionRepository) GetByName(name domain.CapabilityName) (
 	defer r.mu.RUnlock()
 	c, ok := r.capabilities[name]
 	if !ok {
-		return nil, fmt.Errorf("capability %q not found", name)
+		return nil, &domain.ErrNotFound{Entity: "capability", ID: string(name)}
 	}
 	return c, nil
 }
@@ -132,7 +131,7 @@ func (r *PluginContributionRepository) GetByID(id domain.PluginID) (*domain.Plug
 	defer r.mu.RUnlock()
 	p, ok := r.plugins[id]
 	if !ok {
-		return nil, fmt.Errorf("plugin %q not found", id)
+		return nil, &domain.ErrNotFound{Entity: "plugin", ID: string(id)}
 	}
 	return p, nil
 }
@@ -168,7 +167,7 @@ func (r *ExecutionSessionRepository) Get(id domain.ExecutionSessionID) (*domain.
 	defer r.mu.RUnlock()
 	s, ok := r.sessions[id]
 	if !ok {
-		return nil, fmt.Errorf("session %q not found", id)
+		return nil, &domain.ErrNotFound{Entity: "session", ID: string(id)}
 	}
 	return s, nil
 }

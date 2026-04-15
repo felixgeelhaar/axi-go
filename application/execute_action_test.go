@@ -11,10 +11,10 @@ import (
 
 // stubActionExecutor is a simple action executor for testing.
 type stubActionExecutor struct {
-	fn func(ctx context.Context, input any, caps domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error)
+	fn func(ctx context.Context, input any, caps domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error)
 }
 
-func (s *stubActionExecutor) Execute(ctx context.Context, input any, caps domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+func (s *stubActionExecutor) Execute(ctx context.Context, input any, caps domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 	return s.fn(ctx, input, caps)
 }
 
@@ -99,7 +99,7 @@ func TestFullExecutionFlow_Success(t *testing.T) {
 
 	// Register action executor.
 	actionExecReg.Register("exec.greet", &stubActionExecutor{
-		fn: func(_ context.Context, input any, caps domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, input any, caps domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			m := input.(map[string]any)
 			name := m["name"].(string)
 
@@ -166,7 +166,7 @@ func TestFullExecutionFlow_ValidationFailure(t *testing.T) {
 	)
 	_ = action.BindExecutor("exec.strict")
 	actionExecReg.Register("exec.strict", &stubActionExecutor{
-		fn: func(_ context.Context, _ any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			return domain.ExecutionResult{Data: "ok"}, nil, nil
 		},
 	})
@@ -195,7 +195,7 @@ func TestFullExecutionFlow_ActionFailure(t *testing.T) {
 	)
 	_ = action.BindExecutor("exec.fail")
 	actionExecReg.Register("exec.fail", &stubActionExecutor{
-		fn: func(_ context.Context, _ any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			return domain.ExecutionResult{}, []domain.EvidenceRecord{{Kind: "error", Source: "fail-action", Value: "intentional"}},
 				context.DeadlineExceeded
 		},
@@ -252,7 +252,7 @@ func TestPluginRegistration_ViaPluginInterface(t *testing.T) {
 	registerUC, executeUC, actionExecReg, _ := setupFullSystem(t)
 
 	actionExecReg.Register("exec.plugin-greet", &stubActionExecutor{
-		fn: func(_ context.Context, _ any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			return domain.ExecutionResult{Data: "hello from plugin", Summary: "greeted"}, nil, nil
 		},
 	})
@@ -283,7 +283,7 @@ func TestPluginRegistration_ConflictingActionNamesRejected(t *testing.T) {
 	a1, _ := domain.NewActionDefinition("greet", "A", domain.EmptyContract(), domain.EmptyContract(), nil, domain.EffectProfile{}, domain.IdempotencyProfile{})
 	_ = a1.BindExecutor("exec.a")
 	actionExecReg.Register("exec.a", &stubActionExecutor{
-		fn: func(_ context.Context, _ any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			return domain.ExecutionResult{}, nil, nil
 		},
 	})

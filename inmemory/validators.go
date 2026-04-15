@@ -7,7 +7,7 @@ import (
 )
 
 // Compile-time interface satisfaction check.
-var _ domain.ContractValidatorFunc = (*ContractValidator)(nil)
+var _ domain.ContractValidator = (*ContractValidator)(nil)
 
 // ContractValidator validates input against a contract using field-based checks.
 type ContractValidator struct{}

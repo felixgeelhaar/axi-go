@@ -5,33 +5,33 @@ import (
 	"fmt"
 )
 
-// ActionExecutorFunc executes an action with access to capabilities.
-type ActionExecutorFunc interface {
-	Execute(ctx context.Context, input any, invoker CapabilityInvokerFunc) (ExecutionResult, []EvidenceRecord, error)
+// ActionExecutor executes an action with access to capabilities.
+type ActionExecutor interface {
+	Execute(ctx context.Context, input any, invoker CapabilityInvoker) (ExecutionResult, []EvidenceRecord, error)
 }
 
-// CapabilityInvokerFunc is used inside action execution to invoke resolved capabilities.
-type CapabilityInvokerFunc interface {
+// CapabilityInvoker is used inside action execution to invoke resolved capabilities.
+type CapabilityInvoker interface {
 	Invoke(name CapabilityName, input any) (any, error)
 }
 
-// CapabilityExecutorFunc executes a single capability.
-type CapabilityExecutorFunc interface {
+// CapabilityExecutor executes a single capability.
+type CapabilityExecutor interface {
 	Execute(ctx context.Context, input any) (any, error)
 }
 
 // ActionExecutorLookup finds an executor for an action binding.
 type ActionExecutorLookup interface {
-	GetActionExecutor(ref ActionExecutorRef) (ActionExecutorFunc, error)
+	GetActionExecutor(ref ActionExecutorRef) (ActionExecutor, error)
 }
 
 // CapabilityExecutorLookup finds an executor for a capability binding.
 type CapabilityExecutorLookup interface {
-	GetCapabilityExecutor(ref CapabilityExecutorRef) (CapabilityExecutorFunc, error)
+	GetCapabilityExecutor(ref CapabilityExecutorRef) (CapabilityExecutor, error)
 }
 
-// ContractValidatorFunc validates input against a contract.
-type ContractValidatorFunc interface {
+// ContractValidator validates input against a contract.
+type ContractValidator interface {
 	Validate(contract Contract, input any) error
 }
 
@@ -39,7 +39,7 @@ type ContractValidatorFunc interface {
 type ActionExecutionService struct {
 	actionRepo        ActionRepository
 	resolutionService *CapabilityResolutionService
-	validator         ContractValidatorFunc
+	validator         ContractValidator
 	actionExecutors   ActionExecutorLookup
 	capExecutors      CapabilityExecutorLookup
 }
@@ -48,7 +48,7 @@ type ActionExecutionService struct {
 func NewActionExecutionService(
 	actionRepo ActionRepository,
 	resolutionService *CapabilityResolutionService,
-	validator ContractValidatorFunc,
+	validator ContractValidator,
 	actionExecutors ActionExecutorLookup,
 	capExecutors CapabilityExecutorLookup,
 ) *ActionExecutionService {
@@ -127,8 +127,8 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 	return session.Succeed(result)
 }
 
-// buildInvoker creates a CapabilityInvokerFunc from resolved capabilities.
-func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities []*CapabilityDefinition) (CapabilityInvokerFunc, error) {
+// buildInvoker creates a CapabilityInvoker from resolved capabilities.
+func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities []*CapabilityDefinition) (CapabilityInvoker, error) {
 	capMap := make(map[CapabilityName]*CapabilityDefinition, len(capabilities))
 	for _, c := range capabilities {
 		capMap[c.Name()] = c
@@ -140,7 +140,7 @@ func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities 
 	}, nil
 }
 
-// boundInvoker implements CapabilityInvokerFunc by dispatching to registered executors.
+// boundInvoker implements CapabilityInvoker by dispatching to registered executors.
 type boundInvoker struct {
 	ctx          context.Context
 	capabilities map[CapabilityName]*CapabilityDefinition

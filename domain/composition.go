@@ -52,6 +52,37 @@ func NewCompositionService(
 }
 
 // RegisterPlugin accepts a Plugin, calls Contribute(), and registers the result.
+// RegisterBundle atomically registers a plugin's contribution and its executor
+// implementations. This is the preferred registration method as it validates
+// that all executor refs have matching implementations before persisting anything.
+func (s *CompositionService) RegisterBundle(
+	bundle *PluginBundle,
+	actionExecReg ActionExecutorLookup,
+	capExecReg CapabilityExecutorLookup,
+) error {
+	// The bundle constructor already validated ref↔executor pairing.
+	// Register executors first (into the registries).
+	type actionRegistrar interface {
+		Register(ref ActionExecutorRef, executor ActionExecutor)
+	}
+	type capRegistrar interface {
+		Register(ref CapabilityExecutorRef, executor CapabilityExecutor)
+	}
+	if reg, ok := actionExecReg.(actionRegistrar); ok {
+		for ref, exec := range bundle.ActionExecutors {
+			reg.Register(ref, exec)
+		}
+	}
+	if reg, ok := capExecReg.(capRegistrar); ok {
+		for ref, exec := range bundle.CapabilityExecutors {
+			reg.Register(ref, exec)
+		}
+	}
+
+	return s.RegisterContribution(bundle.Contribution)
+}
+
+// RegisterPlugin accepts a Plugin, calls Contribute(), and registers the result.
 func (s *CompositionService) RegisterPlugin(plugin Plugin) error {
 	contribution, err := plugin.Contribute()
 	if err != nil {

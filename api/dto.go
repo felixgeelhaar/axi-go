@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/felixgeelhaar/axi-go/application"
@@ -44,11 +45,19 @@ type ContractDTO struct {
 }
 
 type ContractFieldDTO struct {
-	Name     string `json:"name"`
-	Required bool   `json:"required"`
+	Name        string `json:"name"`
+	Type        string `json:"type,omitempty"`
+	Description string `json:"description,omitempty"`
+	Required    bool   `json:"required"`
+	Example     any    `json:"example,omitempty"`
 }
 
 // Response DTOs.
+
+type ListResponse[T any] struct {
+	Items []T `json:"items"`
+	Count int `json:"count"`
+}
 
 type ActionResponse struct {
 	Name           string      `json:"name"`
@@ -78,8 +87,9 @@ type ExecuteActionResponse struct {
 }
 
 type ExecutionResultDTO struct {
-	Data    any    `json:"data"`
-	Summary string `json:"summary"`
+	Data        any    `json:"data"`
+	Summary     string `json:"summary"`
+	ContentType string `json:"content_type,omitempty"`
 }
 
 type FailureReasonDTO struct {
@@ -88,15 +98,48 @@ type FailureReasonDTO struct {
 }
 
 type EvidenceRecordDTO struct {
-	Kind   string `json:"kind"`
-	Source string `json:"source"`
-	Value  any    `json:"value"`
+	Kind      string `json:"kind"`
+	Source    string `json:"source"`
+	Value     any    `json:"value"`
+	Timestamp int64  `json:"timestamp,omitempty"`
 }
 
 type SessionResponse = ExecuteActionResponse
 
+type RegisterPluginResponse struct {
+	PluginID    string `json:"plugin_id"`
+	Status      string `json:"status"`
+	ActionCount int    `json:"action_count"`
+	CapCount    int    `json:"capability_count"`
+}
+
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error     string `json:"error"`
+	ErrorCode string `json:"error_code,omitempty"`
+}
+
+type HealthResponse struct {
+	Status  string `json:"status"`
+	Version string `json:"version"`
+}
+
+// errorResponseFromErr creates an ErrorResponse with an error_code derived from typed domain errors.
+func errorResponseFromErr(err error) ErrorResponse {
+	resp := ErrorResponse{Error: err.Error()}
+	var notFound *domain.ErrNotFound
+	var conflict *domain.ErrConflict
+	var validation *domain.ErrValidation
+	switch {
+	case errors.As(err, &notFound):
+		resp.ErrorCode = "not_found"
+	case errors.As(err, &conflict):
+		resp.ErrorCode = "conflict"
+	case errors.As(err, &validation):
+		resp.ErrorCode = "validation_error"
+	default:
+		resp.ErrorCode = "internal_error"
+	}
+	return resp
 }
 
 // Domain conversion functions.
@@ -104,7 +147,13 @@ type ErrorResponse struct {
 func contractToDTO(c domain.Contract) ContractDTO {
 	dto := ContractDTO{Fields: make([]ContractFieldDTO, len(c.Fields))}
 	for i, f := range c.Fields {
-		dto.Fields[i] = ContractFieldDTO{Name: f.Name, Required: f.Required}
+		dto.Fields[i] = ContractFieldDTO{
+			Name:        f.Name,
+			Type:        f.Type,
+			Description: f.Description,
+			Required:    f.Required,
+			Example:     f.Example,
+		}
 	}
 	return dto
 }
@@ -112,7 +161,13 @@ func contractToDTO(c domain.Contract) ContractDTO {
 func contractFromDTO(dto ContractDTO) domain.Contract {
 	fields := make([]domain.ContractField, len(dto.Fields))
 	for i, f := range dto.Fields {
-		fields[i] = domain.ContractField{Name: f.Name, Required: f.Required}
+		fields[i] = domain.ContractField{
+			Name:        f.Name,
+			Type:        f.Type,
+			Description: f.Description,
+			Required:    f.Required,
+			Example:     f.Example,
+		}
 	}
 	return domain.NewContract(fields)
 }
@@ -151,13 +206,13 @@ func ExecuteActionResponseFromOutput(o *application.ExecuteActionOutput) Execute
 		Evidence:  make([]EvidenceRecordDTO, len(o.Evidence)),
 	}
 	if o.Result != nil {
-		resp.Result = &ExecutionResultDTO{Data: o.Result.Data, Summary: o.Result.Summary}
+		resp.Result = &ExecutionResultDTO{Data: o.Result.Data, Summary: o.Result.Summary, ContentType: o.Result.ContentType}
 	}
 	if o.Failure != nil {
 		resp.Failure = &FailureReasonDTO{Code: o.Failure.Code, Message: o.Failure.Message}
 	}
 	for i, e := range o.Evidence {
-		resp.Evidence[i] = EvidenceRecordDTO{Kind: e.Kind, Source: e.Source, Value: e.Value}
+		resp.Evidence[i] = EvidenceRecordDTO{Kind: e.Kind, Source: e.Source, Value: e.Value, Timestamp: e.Timestamp}
 	}
 	return resp
 }
@@ -169,13 +224,13 @@ func SessionResponseFromDomain(s *domain.ExecutionSession) SessionResponse {
 		Evidence:  make([]EvidenceRecordDTO, len(s.Evidence())),
 	}
 	if s.Result() != nil {
-		resp.Result = &ExecutionResultDTO{Data: s.Result().Data, Summary: s.Result().Summary}
+		resp.Result = &ExecutionResultDTO{Data: s.Result().Data, Summary: s.Result().Summary, ContentType: s.Result().ContentType}
 	}
 	if s.Failure() != nil {
 		resp.Failure = &FailureReasonDTO{Code: s.Failure().Code, Message: s.Failure().Message}
 	}
 	for i, e := range s.Evidence() {
-		resp.Evidence[i] = EvidenceRecordDTO{Kind: e.Kind, Source: e.Source, Value: e.Value}
+		resp.Evidence[i] = EvidenceRecordDTO{Kind: e.Kind, Source: e.Source, Value: e.Value, Timestamp: e.Timestamp}
 	}
 	return resp
 }
@@ -191,7 +246,7 @@ func (r *RegisterPluginRequest) ToDomain() (*domain.PluginContribution, error) {
 	for i, a := range r.Actions {
 		name, err := domain.NewActionName(a.Name)
 		if err != nil {
-			return nil, fmt.Errorf("action %d: %w", i, err)
+			return nil, fmt.Errorf("action %q: %w", a.Name, err)
 		}
 
 		var reqs domain.RequirementSet
@@ -200,13 +255,13 @@ func (r *RegisterPluginRequest) ToDomain() (*domain.PluginContribution, error) {
 			for j, rName := range a.Requirements {
 				capName, err := domain.NewCapabilityName(rName)
 				if err != nil {
-					return nil, fmt.Errorf("action %d requirement %d: %w", i, j, err)
+					return nil, fmt.Errorf("action %q requirement %q: %w", a.Name, rName, err)
 				}
 				reqList[j] = domain.Requirement{Capability: capName}
 			}
 			reqs, err = domain.NewRequirementSet(reqList...)
 			if err != nil {
-				return nil, fmt.Errorf("action %d: %w", i, err)
+				return nil, fmt.Errorf("action %q: %w", a.Name, err)
 			}
 		}
 
@@ -214,7 +269,7 @@ func (r *RegisterPluginRequest) ToDomain() (*domain.PluginContribution, error) {
 		if a.EffectLevel != "" {
 			effectLevel = domain.EffectLevel(a.EffectLevel)
 			if !domain.ValidEffectLevel(effectLevel) {
-				return nil, fmt.Errorf("action %d: invalid effect level %q (must be none, local, or external)", i, a.EffectLevel)
+				return nil, fmt.Errorf("action %q: invalid effect level %q (must be none, local, or external)", a.Name, a.EffectLevel)
 			}
 		}
 
@@ -226,10 +281,10 @@ func (r *RegisterPluginRequest) ToDomain() (*domain.PluginContribution, error) {
 			domain.IdempotencyProfile{IsIdempotent: a.IsIdempotent},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("action %d: %w", i, err)
+			return nil, fmt.Errorf("action %q: %w", a.Name, err)
 		}
 		if err := action.BindExecutor(domain.ActionExecutorRef(a.ExecutorRef)); err != nil {
-			return nil, fmt.Errorf("action %d: %w", i, err)
+			return nil, fmt.Errorf("action %q: %w", a.Name, err)
 		}
 		actions[i] = action
 	}
@@ -238,17 +293,17 @@ func (r *RegisterPluginRequest) ToDomain() (*domain.PluginContribution, error) {
 	for i, c := range r.Capabilities {
 		name, err := domain.NewCapabilityName(c.Name)
 		if err != nil {
-			return nil, fmt.Errorf("capability %d: %w", i, err)
+			return nil, fmt.Errorf("capability %q: %w", c.Name, err)
 		}
 		cap, err := domain.NewCapabilityDefinition(
 			name, c.Description,
 			contractFromDTO(c.InputContract), contractFromDTO(c.OutputContract),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("capability %d: %w", i, err)
+			return nil, fmt.Errorf("capability %q: %w", c.Name, err)
 		}
 		if err := cap.BindExecutor(domain.CapabilityExecutorRef(c.ExecutorRef)); err != nil {
-			return nil, fmt.Errorf("capability %d: %w", i, err)
+			return nil, fmt.Errorf("capability %q: %w", c.Name, err)
 		}
 		capabilities[i] = cap
 	}

@@ -37,8 +37,9 @@ func NewServer(
 }
 
 func (s *Server) setupRoutes() {
-	v1 := s.engine.Group("/api/v1")
+	s.engine.GET("/health", s.healthCheck)
 
+	v1 := s.engine.Group("/api/v1")
 	v1.GET("/actions", s.listActions)
 	v1.GET("/actions/{name}", s.getAction)
 	v1.POST("/actions/execute", s.handleExecuteAction)

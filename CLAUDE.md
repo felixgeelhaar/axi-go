@@ -5,13 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```bash
-make build          # Build all packages
-make test           # Run all tests
+make check          # Full suite: fmt + lint + test + security
+make test           # Run tests
 make lint           # golangci-lint (gocritic, errcheck, govet, staticcheck, unused)
 make fmt            # Auto-fix formatting (gofmt + goimports via golangci-lint)
 make cover          # Tests with coverage + coverctl record
 make security       # nox security scan
-make check          # Full suite: fmt + lint + test + security
 make install-hooks  # Install pre-commit git hook
 ```
 
@@ -23,91 +22,79 @@ Zero external dependencies — standard library only.
 
 A domain-driven execution kernel for semantic actions. Actions express intent (e.g. "greet"), capabilities express mechanics (e.g. "string.upper"), plugins contribute both, and execution sessions track the full lifecycle with evidence.
 
-**This is a pure domain library.** No external frameworks, no reflection, no global registries.
-
 ## Architecture
 
-Five packages with a strict dependency direction:
-
 ```
-domain/  (stdlib only)
-    ↑
-application/  (imports domain/)
-    ↑         \
-inmemory/    api/  (imports domain/, application/)
-    ↑          ↑
-  cmd/server/main.go  (wires everything)
+domain/          Zero deps. Aggregates, services, port interfaces.
+application/     Use cases: RegisterPlugin, ExecuteAction.
+api/             Gin-like HTTP API on stdlib net/http.
+inmemory/        Thread-safe in-memory adapters.
+cmd/server/      Minimal entrypoint.
+example/         Working example with sample greeter plugin.
 ```
 
-### `domain/` — Core (depends on nothing)
+Dependency direction: `domain` <- `application` <- `api`/`inmemory` <- `cmd/server`
 
-Four **aggregate roots** with unexported fields and constructor-enforced invariants:
+### `domain/` — Core
 
-- **ActionDefinition** — semantic action with input/output contracts, requirements, effect/idempotency profiles, and an executor binding
-- **CapabilityDefinition** — low-level executable capability with contracts and an executor binding
-- **PluginContribution** — groups actions + capabilities from one plugin; must activate (all bindings set) before use
-- **ExecutionSession** — state machine: `Pending → Validated → Resolved → Running → Succeeded|Failed`. No backward transitions. Result XOR Failure. Evidence append-only.
+**Aggregates** (unexported fields, constructor-enforced invariants):
+- **ActionDefinition** — semantic action with typed contracts, requirements, effect/idempotency profiles, executor binding
+- **CapabilityDefinition** — executable capability with contracts and executor binding
+- **PluginContribution** — groups actions + capabilities; must activate before use
+- **ExecutionSession** — state machine: `Pending -> Validated -> Resolved -> Running -> Succeeded|Failed`
 
-Three **domain services**:
+**Domain services:**
+- **CompositionService** — registers plugins/contributions/bundles, enforces global name uniqueness, rollback on partial failure
+- **CapabilityResolutionService** — resolves RequirementSet into CapabilityDefinitions
+- **ActionExecutionService** — orchestrates validate -> resolve -> execute -> evidence -> result/failure
 
-- **CompositionService** (`composition.go`) — registers plugins/contributions, enforces global name uniqueness. Accepts `Plugin` interface or raw `*PluginContribution`.
-- **CapabilityResolutionService** (`resolution.go`) — resolves RequirementSet into CapabilityDefinitions
-- **ActionExecutionService** (`execution.go`) — orchestrates the full execution flow
+**Key types:**
+- **Plugin** interface (`plugin.go`) — implement `Contribute()` to provide actions/capabilities
+- **PluginBundle** (`bundle.go`) — pairs contribution with executor implementations for atomic registration
+- **Contract** (`values.go`) — fields with `Name`, `Type`, `Description`, `Required`, `Example`
+- **EvidenceRecord** — includes `Timestamp` (unix ms)
+- **ExecutionResult** — includes `ContentType` for agent interpretation
+- **Typed errors** (`errors.go`) — `ErrNotFound`, `ErrConflict`, `ErrValidation`
 
-All **port interfaces** live in domain: repositories in `composition.go`, executor/validator interfaces in `execution.go`.
+**Port interfaces** (all in domain):
+- Repositories: `ActionRepository`, `CapabilityRepository`, `PluginRepository`, `SessionRepository`
+- Executors: `ActionExecutor`, `CapabilityInvoker`, `CapabilityExecutor`
+- Lookups: `ActionExecutorLookup`, `CapabilityExecutorLookup`
+- Validation: `ContractValidator`
 
-### `application/` — Use cases
+### `api/` — HTTP API
 
-- **RegisterPluginContributionUseCase** — wraps CompositionService. Supports `Execute()` and `ExecutePlugin()`.
-- **ExecuteActionUseCase** — creates session, delegates to ActionExecutionService, persists result.
+Gin-like router (`Engine`/`Context`/`RouterGroup`) on Go 1.22+ `http.ServeMux`. No external deps.
 
-### `api/` — Gin-like HTTP API (stdlib net/http)
+Routes:
+- `GET /health` — health check
+- `GET /api/v1/actions` — list actions (envelope: `{items, count}`)
+- `GET /api/v1/actions/{name}` — get action
+- `POST /api/v1/actions/execute` — execute (200 even on domain failure)
+- `GET /api/v1/sessions/{id}` — get session
+- `GET /api/v1/capabilities` — list capabilities (envelope)
+- `POST /api/v1/plugins` — register plugin (201/409)
 
-Custom Gin-style router (`Engine`, `Context`, `RouterGroup`) built on Go 1.22+ `http.ServeMux` path params. Zero external dependencies.
+Error responses include `error_code` field (`not_found`, `conflict`, `validation_error`, `internal_error`).
 
-Routes under `/api/v1`:
-- `GET /actions` — list actions
-- `GET /actions/{name}` — get action by name
-- `POST /actions/execute` — execute action (200 even on action failure — it's a valid domain outcome)
-- `GET /sessions/{id}` — get session
-- `GET /capabilities` — list capabilities
-- `POST /plugins` — register plugin (201 on success, 409 on conflict)
+### `inmemory/` — Adapters
 
-DTOs in `dto.go` convert between JSON and domain aggregates (which have unexported fields).
-
-### `inmemory/` — In-memory adapters
-
-Thread-safe (`sync.RWMutex`) repositories, executor registries, contract validator, ID generator. Compile-time interface checks.
-
-### `cmd/server/` — Entrypoint
-
-Wires inmemory adapters into the API server. `go run cmd/server/main.go` starts on `:8080`.
-
-## Quality Tooling
-
-- **`.golangci.yml`** — golangci-lint v2 config with gocritic, errcheck, govet, staticcheck, unused, gofmt, goimports
-- **`Makefile`** — all quality targets; `make check` is the full suite
-- **`scripts/pre-commit`** — git hook running fmt check, lint, vet, tests. Installed via `make install-hooks`. Skips nox/coverctl for speed.
-- **Nox baseline** — `.nox-baseline.yml` suppresses known false positives
+Thread-safe repos with typed domain errors (`ErrNotFound`). Compile-time interface checks.
 
 ## Key Design Rules
 
 - **Domain has zero imports** outside stdlib
-- **Aggregates enforce their own invariants** via constructors; fields are unexported
-- **All port interfaces live in domain** — no outward dependencies from domain services
-- **Plugins only contribute domain objects** — implement `domain.Plugin` with `Contribute()`
+- **Aggregates enforce invariants** — unexported fields, defensive slice copies
+- **All port interfaces live in domain**
+- **PluginBundle** is the preferred registration method — validates executor refs match implementations
 - **Action failure is a valid outcome**, not a Go error
 - **Names must match** `^[a-zA-Z][a-zA-Z0-9._-]*$`
-- **Executor code must be compiled in** — the HTTP API registers plugin metadata/bindings, not executable code
+- **Executor code must be compiled in** — HTTP API registers metadata only
 
 ## Execution Flow
 
 `ActionExecutionService.Execute`:
-
-1. Load ActionDefinition by name
-2. Validate input against InputContract → `Validated`
-3. Resolve RequirementSet → `Resolved`
-4. Build `boundInvoker` scoped to resolved capabilities
-5. Look up ActionExecutor by binding ref → `Running`
-6. Execute, collecting evidence
-7. `Succeeded` (with result) or `Failed` (with reason)
+1. Load ActionDefinition -> validate input -> `Validated`
+2. Resolve RequirementSet -> `Resolved`
+3. Build scoped `CapabilityInvoker` -> execute -> `Running`
+4. Collect evidence -> `Succeeded` (with result) or `Failed` (with reason)

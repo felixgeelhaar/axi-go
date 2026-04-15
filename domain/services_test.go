@@ -152,10 +152,10 @@ func (v *fakeValidator) Validate(contract domain.Contract, input any) error {
 }
 
 type fakeActionExecutor struct {
-	fn func(ctx context.Context, input any, invoker domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error)
+	fn func(ctx context.Context, input any, invoker domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error)
 }
 
-func (e *fakeActionExecutor) Execute(ctx context.Context, input any, invoker domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+func (e *fakeActionExecutor) Execute(ctx context.Context, input any, invoker domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 	return e.fn(ctx, input, invoker)
 }
 
@@ -168,10 +168,10 @@ func (e *fakeCapExecutor) Execute(ctx context.Context, input any) (any, error) {
 }
 
 type fakeActionExecLookup struct {
-	executors map[domain.ActionExecutorRef]domain.ActionExecutorFunc
+	executors map[domain.ActionExecutorRef]domain.ActionExecutor
 }
 
-func (l *fakeActionExecLookup) GetActionExecutor(ref domain.ActionExecutorRef) (domain.ActionExecutorFunc, error) {
+func (l *fakeActionExecLookup) GetActionExecutor(ref domain.ActionExecutorRef) (domain.ActionExecutor, error) {
 	e, ok := l.executors[ref]
 	if !ok {
 		return nil, fmt.Errorf("executor %q not found", ref)
@@ -180,10 +180,10 @@ func (l *fakeActionExecLookup) GetActionExecutor(ref domain.ActionExecutorRef) (
 }
 
 type fakeCapExecLookup struct {
-	executors map[domain.CapabilityExecutorRef]domain.CapabilityExecutorFunc
+	executors map[domain.CapabilityExecutorRef]domain.CapabilityExecutor
 }
 
-func (l *fakeCapExecLookup) GetCapabilityExecutor(ref domain.CapabilityExecutorRef) (domain.CapabilityExecutorFunc, error) {
+func (l *fakeCapExecLookup) GetCapabilityExecutor(ref domain.CapabilityExecutorRef) (domain.CapabilityExecutor, error) {
 	e, ok := l.executors[ref]
 	if !ok {
 		return nil, fmt.Errorf("executor %q not found", ref)
@@ -382,8 +382,8 @@ func setupExecution(t *testing.T) (
 	actionRepo := newFakeActionRepo()
 	capRepo := newFakeCapRepo()
 	validator := &fakeValidator{}
-	actionExecs := &fakeActionExecLookup{executors: make(map[domain.ActionExecutorRef]domain.ActionExecutorFunc)}
-	capExecs := &fakeCapExecLookup{executors: make(map[domain.CapabilityExecutorRef]domain.CapabilityExecutorFunc)}
+	actionExecs := &fakeActionExecLookup{executors: make(map[domain.ActionExecutorRef]domain.ActionExecutor)}
+	capExecs := &fakeCapExecLookup{executors: make(map[domain.CapabilityExecutorRef]domain.CapabilityExecutor)}
 	resSvc := domain.NewCapabilityResolutionService(capRepo)
 	execSvc := domain.NewActionExecutionService(actionRepo, resSvc, validator, actionExecs, capExecs)
 	return execSvc, actionRepo, capRepo, actionExecs, capExecs
@@ -420,7 +420,7 @@ func TestExecutionService_SuccessWithCapability(t *testing.T) {
 	_ = actionRepo.Save(action)
 
 	actionExecs.executors["exec.reverse-greet"] = &fakeActionExecutor{
-		fn: func(_ context.Context, input any, invoker domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, input any, invoker domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			m := input.(map[string]any)
 			reversed, err := invoker.Invoke("string.reverse", m["name"])
 			if err != nil {
@@ -470,7 +470,7 @@ func TestExecutionService_ValidationFailure(t *testing.T) {
 	_ = action.BindExecutor("exec.strict")
 	_ = actionRepo.Save(action)
 	actionExecs.executors["exec.strict"] = &fakeActionExecutor{
-		fn: func(_ context.Context, _ any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			return domain.ExecutionResult{}, nil, nil
 		},
 	}
@@ -494,7 +494,7 @@ func TestExecutionService_ExecutorFailure(t *testing.T) {
 	_ = action.BindExecutor("exec.fail")
 	_ = actionRepo.Save(action)
 	actionExecs.executors["exec.fail"] = &fakeActionExecutor{
-		fn: func(_ context.Context, _ any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			return domain.ExecutionResult{},
 				[]domain.EvidenceRecord{{Kind: "error", Source: "fail", Value: "boom"}},
 				errors.New("intentional failure")
@@ -546,7 +546,7 @@ func TestExecutionService_InvokerRejectsUnresolvedCapability(t *testing.T) {
 	_ = actionRepo.Save(action)
 
 	actionExecs.executors["exec.bad"] = &fakeActionExecutor{
-		fn: func(_ context.Context, _ any, invoker domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, invoker domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			_, err := invoker.Invoke("not.resolved", nil)
 			return domain.ExecutionResult{}, nil, err
 		},

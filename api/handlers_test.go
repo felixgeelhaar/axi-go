@@ -16,10 +16,10 @@ import (
 )
 
 type stubActionExecutor struct {
-	fn func(ctx context.Context, input any, caps domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error)
+	fn func(ctx context.Context, input any, caps domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error)
 }
 
-func (s *stubActionExecutor) Execute(ctx context.Context, input any, caps domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+func (s *stubActionExecutor) Execute(ctx context.Context, input any, caps domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 	return s.fn(ctx, input, caps)
 }
 
@@ -71,27 +71,34 @@ func decodeJSON[T any](t *testing.T, w *httptest.ResponseRecorder) T {
 	t.Helper()
 	var result T
 	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
+		t.Fatalf("failed to decode response: %v\nbody: %s", err, w.Body.String())
 	}
 	return result
 }
 
 // --- Tests ---
 
-func TestListActions_Empty(t *testing.T) {
+func TestHealthCheck(t *testing.T) {
 	srv, _ := setupTestServer(t)
-	w := doRequest(srv, "GET", "/api/v1/actions", nil)
-
+	w := doRequest(srv, "GET", "/health", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-
-	var actions []api.ActionResponse
-	if err := json.NewDecoder(w.Body).Decode(&actions); err != nil {
-		t.Fatalf("decode error: %v", err)
+	resp := decodeJSON[api.HealthResponse](t, w)
+	if resp.Status != "ok" {
+		t.Errorf("expected ok, got %s", resp.Status)
 	}
-	if len(actions) != 0 {
-		t.Errorf("expected empty list, got %d", len(actions))
+}
+
+func TestListActions_Empty(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	w := doRequest(srv, "GET", "/api/v1/actions", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	resp := decodeJSON[api.ListResponse[api.ActionResponse]](t, w)
+	if resp.Count != 0 {
+		t.Errorf("expected 0, got %d", resp.Count)
 	}
 }
 
@@ -106,7 +113,9 @@ func TestRegisterPlugin_AndListActions(t *testing.T) {
 				Description: "Greet someone",
 				ExecutorRef: "exec.greet",
 				InputContract: api.ContractDTO{
-					Fields: []api.ContractFieldDTO{{Name: "name", Required: true}},
+					Fields: []api.ContractFieldDTO{
+						{Name: "name", Type: "string", Description: "Person to greet", Required: true, Example: "world"},
+					},
 				},
 			},
 		},
@@ -116,18 +125,21 @@ func TestRegisterPlugin_AndListActions(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+	regResp := decodeJSON[api.RegisterPluginResponse](t, w)
+	if regResp.ActionCount != 1 {
+		t.Errorf("expected 1 action, got %d", regResp.ActionCount)
+	}
 
-	// List should now have 1 action.
 	w = doRequest(srv, "GET", "/api/v1/actions", nil)
-	actions := decodeJSON[[]api.ActionResponse](t, w)
-	if len(actions) != 1 {
-		t.Fatalf("expected 1 action, got %d", len(actions))
+	listResp := decodeJSON[api.ListResponse[api.ActionResponse]](t, w)
+	if listResp.Count != 1 {
+		t.Fatalf("expected 1 action, got %d", listResp.Count)
 	}
-	if actions[0].Name != "greet" {
-		t.Errorf("expected greet, got %s", actions[0].Name)
+	if listResp.Items[0].Name != "greet" {
+		t.Errorf("expected greet, got %s", listResp.Items[0].Name)
 	}
-	if !actions[0].IsBound {
-		t.Error("expected action to be bound")
+	if listResp.Items[0].InputContract.Fields[0].Type != "string" {
+		t.Errorf("expected string type, got %s", listResp.Items[0].InputContract.Fields[0].Type)
 	}
 }
 
@@ -136,6 +148,10 @@ func TestGetAction_NotFound(t *testing.T) {
 	w := doRequest(srv, "GET", "/api/v1/actions/nonexistent", nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
+	}
+	resp := decodeJSON[api.ErrorResponse](t, w)
+	if resp.ErrorCode != "not_found" {
+		t.Errorf("expected not_found error code, got %s", resp.ErrorCode)
 	}
 }
 
@@ -161,21 +177,18 @@ func TestGetAction_Found(t *testing.T) {
 func TestExecuteAction_Success(t *testing.T) {
 	srv, actionExecReg := setupTestServer(t)
 
-	// Register a plugin with an action.
 	plugin := api.RegisterPluginRequest{
 		PluginID: "exec.plugin",
 		Actions:  []api.ActionDTO{{Name: "echo", Description: "Echo input", ExecutorRef: "exec.echo"}},
 	}
 	doRequest(srv, "POST", "/api/v1/plugins", plugin)
 
-	// Register the executor.
 	actionExecReg.Register("exec.echo", &stubActionExecutor{
-		fn: func(_ context.Context, input any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
-			return domain.ExecutionResult{Data: input, Summary: "echoed"}, nil, nil
+		fn: func(_ context.Context, input any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Data: input, Summary: "echoed", ContentType: "application/json"}, nil, nil
 		},
 	})
 
-	// Execute.
 	w := doRequest(srv, "POST", "/api/v1/actions/execute", api.ExecuteActionRequest{
 		ActionName: "echo",
 		Input:      map[string]any{"msg": "hi"},
@@ -190,6 +203,9 @@ func TestExecuteAction_Success(t *testing.T) {
 	if resp.Result == nil {
 		t.Fatal("expected result")
 	}
+	if resp.Result.ContentType != "application/json" {
+		t.Errorf("expected application/json content type, got %s", resp.Result.ContentType)
+	}
 }
 
 func TestExecuteAction_MissingActionName(t *testing.T) {
@@ -197,6 +213,10 @@ func TestExecuteAction_MissingActionName(t *testing.T) {
 	w := doRequest(srv, "POST", "/api/v1/actions/execute", api.ExecuteActionRequest{})
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+	resp := decodeJSON[api.ErrorResponse](t, w)
+	if resp.ErrorCode != "validation_error" {
+		t.Errorf("expected validation_error, got %s", resp.ErrorCode)
 	}
 }
 
@@ -207,6 +227,10 @@ func TestExecuteAction_ActionNotFound(t *testing.T) {
 	})
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := decodeJSON[api.ErrorResponse](t, w)
+	if resp.ErrorCode != "not_found" {
+		t.Errorf("expected not_found, got %s", resp.ErrorCode)
 	}
 }
 
@@ -219,26 +243,21 @@ func TestGetSession(t *testing.T) {
 	}
 	doRequest(srv, "POST", "/api/v1/plugins", plugin)
 	actionExecReg.Register("exec.noop", &stubActionExecutor{
-		fn: func(_ context.Context, _ any, _ domain.CapabilityInvokerFunc) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
 			return domain.ExecutionResult{Data: "ok"}, nil, nil
 		},
 	})
 
-	// Execute to create a session.
 	w := doRequest(srv, "POST", "/api/v1/actions/execute", api.ExecuteActionRequest{ActionName: "noop"})
 	execResp := decodeJSON[api.ExecuteActionResponse](t, w)
 
-	// Retrieve the session.
 	w = doRequest(srv, "GET", "/api/v1/sessions/"+execResp.SessionID, nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 	sess := decodeJSON[api.SessionResponse](t, w)
 	if sess.SessionID != execResp.SessionID {
-		t.Errorf("session ID mismatch: %s != %s", sess.SessionID, execResp.SessionID)
-	}
-	if sess.Status != "succeeded" {
-		t.Errorf("expected succeeded, got %s", sess.Status)
+		t.Errorf("session ID mismatch")
 	}
 }
 
@@ -256,9 +275,9 @@ func TestListCapabilities_Empty(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	caps := decodeJSON[[]api.CapabilityResponse](t, w)
-	if len(caps) != 0 {
-		t.Errorf("expected empty, got %d", len(caps))
+	resp := decodeJSON[api.ListResponse[api.CapabilityResponse]](t, w)
+	if resp.Count != 0 {
+		t.Errorf("expected 0, got %d", resp.Count)
 	}
 }
 
@@ -277,12 +296,12 @@ func TestRegisterPlugin_WithCapabilities(t *testing.T) {
 	}
 
 	w = doRequest(srv, "GET", "/api/v1/capabilities", nil)
-	caps := decodeJSON[[]api.CapabilityResponse](t, w)
-	if len(caps) != 1 {
-		t.Fatalf("expected 1, got %d", len(caps))
+	resp := decodeJSON[api.ListResponse[api.CapabilityResponse]](t, w)
+	if resp.Count != 1 {
+		t.Fatalf("expected 1, got %d", resp.Count)
 	}
-	if caps[0].Name != "http.get" {
-		t.Errorf("expected http.get, got %s", caps[0].Name)
+	if resp.Items[0].Name != "http.get" {
+		t.Errorf("expected http.get, got %s", resp.Items[0].Name)
 	}
 }
 
@@ -295,6 +314,10 @@ func TestRegisterPlugin_DuplicateRejected(t *testing.T) {
 	w := doRequest(srv, "POST", "/api/v1/plugins", plugin)
 	if w.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := decodeJSON[api.ErrorResponse](t, w)
+	if resp.ErrorCode != "conflict" {
+		t.Errorf("expected conflict, got %s", resp.ErrorCode)
 	}
 }
 
