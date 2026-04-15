@@ -94,11 +94,20 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 		return &ErrNotFound{Entity: "action", ID: string(session.ActionName())}
 	}
 
+	// Check context between phases.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	// Validate input.
 	if err := s.validator.Validate(action.InputContract(), session.Input()); err != nil {
 		return &ErrValidation{Message: fmt.Sprintf("input validation failed: %v", err)}
 	}
 	if err := session.MarkValidated(); err != nil {
+		return err
+	}
+
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 

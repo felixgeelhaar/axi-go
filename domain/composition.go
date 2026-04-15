@@ -1,9 +1,14 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // CompositionService handles plugin registration, conflict detection, and activation.
+// All mutation methods are serialized via a mutex to prevent TOCTOU races.
 type CompositionService struct {
+	mu             sync.Mutex
 	actionRepo     ActionRepository
 	capabilityRepo CapabilityRepository
 	pluginRepo     PluginRepository
@@ -106,6 +111,8 @@ func (s *CompositionService) RegisterPluginWithConfig(plugin Plugin, config Plug
 
 // RegisterContribution validates, detects conflicts, persists, and activates a contribution.
 func (s *CompositionService) RegisterContribution(contribution *PluginContribution) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.pluginRepo.Exists(contribution.PluginID()) {
 		return &ErrConflict{Message: fmt.Sprintf("plugin %q is already registered", contribution.PluginID())}
 	}
@@ -170,6 +177,9 @@ func (s *CompositionService) RegisterContribution(contribution *PluginContributi
 
 // DeregisterPlugin removes a plugin and all its contributed actions and capabilities.
 func (s *CompositionService) DeregisterPlugin(id PluginID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	contribution, err := s.pluginRepo.GetByID(id)
 	if err != nil {
 		return &ErrNotFound{Entity: "plugin", ID: string(id)}

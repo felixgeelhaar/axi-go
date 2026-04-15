@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 // validTransitions defines the primary (happy-path) state transitions.
@@ -16,7 +17,11 @@ var validTransitions = map[ExecutionStatus]ExecutionStatus{
 }
 
 // ExecutionSession is the aggregate root for one action execution.
+// Thread-safe: all mutations and reads are protected by a mutex
+// to support concurrent access in async execution mode.
 type ExecutionSession struct {
+	mu sync.RWMutex
+
 	id         ExecutionSessionID
 	actionName ActionName
 	input      any
@@ -53,11 +58,15 @@ func NewExecutionSession(
 
 // MarkValidated transitions Pending → Validated.
 func (s *ExecutionSession) MarkValidated() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.transitionTo(StatusValidated)
 }
 
 // MarkResolved transitions Validated → Resolved, recording resolved capabilities.
 func (s *ExecutionSession) MarkResolved(capabilities []CapabilityName) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := s.transitionTo(StatusResolved); err != nil {
 		return err
 	}
@@ -66,8 +75,9 @@ func (s *ExecutionSession) MarkResolved(capabilities []CapabilityName) error {
 }
 
 // MarkAwaitingApproval transitions Resolved → AwaitingApproval.
-// Used for actions with external effects that require human-in-the-loop approval.
 func (s *ExecutionSession) MarkAwaitingApproval() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.status != StatusResolved {
 		return fmt.Errorf("cannot transition from %s to %s", s.status, StatusAwaitingApproval)
 	}
@@ -78,6 +88,8 @@ func (s *ExecutionSession) MarkAwaitingApproval() error {
 
 // Approve transitions AwaitingApproval → Running.
 func (s *ExecutionSession) Approve() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.status != StatusAwaitingApproval {
 		return fmt.Errorf("cannot approve session in %s status", s.status)
 	}
@@ -87,6 +99,8 @@ func (s *ExecutionSession) Approve() error {
 
 // Reject transitions AwaitingApproval → Rejected with a reason.
 func (s *ExecutionSession) Reject(reason FailureReason) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.status != StatusAwaitingApproval {
 		return fmt.Errorf("cannot reject session in %s status", s.status)
 	}
@@ -97,11 +111,15 @@ func (s *ExecutionSession) Reject(reason FailureReason) error {
 
 // MarkRunning transitions Resolved → Running (skipping approval).
 func (s *ExecutionSession) MarkRunning() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.transitionTo(StatusRunning)
 }
 
 // Succeed transitions Running → Succeeded with a result.
 func (s *ExecutionSession) Succeed(result ExecutionResult) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := s.transitionTo(StatusSucceeded); err != nil {
 		return err
 	}
@@ -111,6 +129,8 @@ func (s *ExecutionSession) Succeed(result ExecutionResult) error {
 
 // Fail transitions Running → Failed with a failure reason.
 func (s *ExecutionSession) Fail(reason FailureReason) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.status != StatusRunning {
 		return fmt.Errorf("cannot transition from %s to %s", s.status, StatusFailed)
 	}
@@ -121,6 +141,8 @@ func (s *ExecutionSession) Fail(reason FailureReason) error {
 
 // AppendEvidence adds an evidence record (append-only).
 func (s *ExecutionSession) AppendEvidence(record EvidenceRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.evidence = append(s.evidence, record)
 }
 
@@ -133,23 +155,47 @@ func (s *ExecutionSession) transitionTo(target ExecutionStatus) error {
 	return nil
 }
 
-// Accessors.
+// Accessors — all read-locked for concurrent safety.
 
-func (s *ExecutionSession) ID() ExecutionSessionID   { return s.id }
-func (s *ExecutionSession) ActionName() ActionName   { return s.actionName }
-func (s *ExecutionSession) Input() any               { return s.input }
-func (s *ExecutionSession) Status() ExecutionStatus  { return s.status }
-func (s *ExecutionSession) RequiresApproval() bool   { return s.requiresApproval }
-func (s *ExecutionSession) Result() *ExecutionResult { return s.result }
-func (s *ExecutionSession) Failure() *FailureReason  { return s.failure }
+func (s *ExecutionSession) ID() ExecutionSessionID { return s.id }         // immutable
+func (s *ExecutionSession) ActionName() ActionName { return s.actionName } // immutable
+func (s *ExecutionSession) Input() any             { return s.input }      // immutable
+
+func (s *ExecutionSession) Status() ExecutionStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.status
+}
+
+func (s *ExecutionSession) RequiresApproval() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.requiresApproval
+}
+
+func (s *ExecutionSession) Result() *ExecutionResult {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.result
+}
+
+func (s *ExecutionSession) Failure() *FailureReason {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.failure
+}
 
 func (s *ExecutionSession) Evidence() []EvidenceRecord {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make([]EvidenceRecord, len(s.evidence))
 	copy(out, s.evidence)
 	return out
 }
 
 func (s *ExecutionSession) ResolvedCapabilities() []CapabilityName {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make([]CapabilityName, len(s.resolvedCapabilities))
 	copy(out, s.resolvedCapabilities)
 	return out

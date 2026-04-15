@@ -70,24 +70,27 @@ func (uc *ExecuteActionUseCase) ExecuteAsync(ctx context.Context, input ExecuteA
 		return nil, fmt.Errorf("failed to create execution session: %w", err)
 	}
 
+	// Capture the initial snapshot before any mutation.
+	output := outputFromSession(session)
+
 	// Persist the pending session immediately so it's pollable.
 	if err := uc.SessionRepo.Save(session); err != nil {
 		return nil, fmt.Errorf("failed to persist session: %w", err)
 	}
 
-	// Execute in background.
+	// Execute in background. The goroutine owns the session exclusively.
 	go func() {
-		bgCtx := context.Background()
-		if err := uc.ExecutionService.Execute(bgCtx, session); err != nil {
-			// Best-effort: try to fail the session if execution service errored.
-			if session.Status() == domain.StatusRunning {
-				_ = session.Fail(domain.FailureReason{Code: "EXECUTION_ERROR", Message: err.Error()})
+		defer func() {
+			if r := recover(); r != nil {
+				_ = session.Fail(domain.FailureReason{Code: "PANIC", Message: fmt.Sprintf("%v", r)})
 			}
-		}
-		_ = uc.SessionRepo.Save(session)
+			_ = uc.SessionRepo.Save(session)
+		}()
+		bgCtx := context.Background()
+		_ = uc.ExecutionService.Execute(bgCtx, session)
 	}()
 
-	return outputFromSession(session), nil
+	return output, nil
 }
 
 // ApproveSession approves a session awaiting approval and resumes execution.

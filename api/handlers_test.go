@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/felixgeelhaar/axi-go/api"
 	"github.com/felixgeelhaar/axi-go/application"
@@ -445,5 +446,100 @@ func TestApproveSession_NotAwaitingApproval(t *testing.T) {
 	w = doRequest(srv, "POST", "/api/v1/sessions/"+resp.SessionID+"/approve", nil)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestExecuteAction_Async(t *testing.T) {
+	srv, actionExecReg := setupTestServer(t)
+
+	plugin := api.RegisterPluginRequest{
+		PluginID: "async.plugin",
+		Actions:  []api.ActionDTO{{Name: "async-action", ExecutorRef: "exec.async"}},
+	}
+	doRequest(srv, "POST", "/api/v1/plugins", plugin)
+
+	done := make(chan struct{})
+	actionExecReg.Register("exec.async", &stubActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			<-done // Block until we signal.
+			return domain.ExecutionResult{Data: "async-result"}, nil, nil
+		},
+	})
+
+	// Async execute — should return 202 immediately.
+	w := doRequest(srv, "POST", "/api/v1/actions/execute", api.ExecuteActionRequest{
+		ActionName: "async-action",
+		Async:      true,
+	})
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := decodeJSON[api.ExecuteActionResponse](t, w)
+	if resp.SessionID == "" {
+		t.Fatal("expected session ID")
+	}
+
+	// Session should be pollable in pending state.
+	w = doRequest(srv, "GET", "/api/v1/sessions/"+resp.SessionID, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Unblock the executor and wait for completion.
+	close(done)
+
+	// Poll until completed (max 50 attempts at 10ms).
+	var finalStatus string
+	for i := 0; i < 50; i++ {
+		time.Sleep(10 * time.Millisecond)
+		w = doRequest(srv, "GET", "/api/v1/sessions/"+resp.SessionID, nil)
+		sess := decodeJSON[api.ExecuteActionResponse](t, w)
+		if sess.Status == "succeeded" || sess.Status == "failed" {
+			finalStatus = sess.Status
+			break
+		}
+	}
+	if finalStatus != "succeeded" {
+		t.Errorf("expected succeeded after async completion, got %s", finalStatus)
+	}
+}
+
+func TestDeregisterPlugin(t *testing.T) {
+	srv, _ := setupTestServer(t)
+
+	// Register a plugin.
+	plugin := api.RegisterPluginRequest{
+		PluginID: "removable",
+		Actions:  []api.ActionDTO{{Name: "temp-action", ExecutorRef: "exec.temp"}},
+	}
+	w := doRequest(srv, "POST", "/api/v1/plugins", plugin)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", w.Code)
+	}
+
+	// Verify action exists.
+	w = doRequest(srv, "GET", "/api/v1/actions/temp-action", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Deregister.
+	w = doRequest(srv, "DELETE", "/api/v1/plugins/removable", nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify action is gone.
+	w = doRequest(srv, "GET", "/api/v1/actions/temp-action", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after deregister, got %d", w.Code)
+	}
+}
+
+func TestDeregisterPlugin_NotFound(t *testing.T) {
+	srv, _ := setupTestServer(t)
+	w := doRequest(srv, "DELETE", "/api/v1/plugins/nonexistent", nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
 	}
 }
