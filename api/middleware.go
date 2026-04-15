@@ -25,6 +25,7 @@ func AuthMiddleware(auth Authenticator, skipPaths ...string) HandlerFunc {
 				Error:     err.Error(),
 				ErrorCode: "unauthorized",
 			})
+			return
 		}
 	}
 }

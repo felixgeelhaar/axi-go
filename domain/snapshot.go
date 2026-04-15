@@ -1,5 +1,7 @@
 package domain
 
+import "fmt"
+
 // Snapshot types for persistence adapters.
 // These are plain structs with exported fields for serialization.
 
@@ -194,6 +196,38 @@ func (p *PluginContribution) ToSnapshot() PluginSnapshot {
 		Capabilities: caps,
 		Status:       string(p.status),
 	}
+}
+
+// SessionFromSnapshot reconstructs an ExecutionSession from a serializable snapshot.
+// This bypasses normal state transitions to restore persisted state.
+func SessionFromSnapshot(s SessionSnapshot) (*ExecutionSession, error) {
+	if s.ID == "" {
+		return nil, fmt.Errorf("session snapshot has empty ID")
+	}
+	caps := make([]CapabilityName, len(s.ResolvedCapabilities))
+	for i, c := range s.ResolvedCapabilities {
+		caps[i] = CapabilityName(c)
+	}
+	evidence := make([]EvidenceRecord, len(s.Evidence))
+	for i, e := range s.Evidence {
+		evidence[i] = EvidenceRecord(e)
+	}
+	session := &ExecutionSession{
+		id:                   ExecutionSessionID(s.ID),
+		actionName:           ActionName(s.ActionName),
+		input:                s.Input,
+		status:               ExecutionStatus(s.Status),
+		requiresApproval:     s.RequiresApproval,
+		resolvedCapabilities: caps,
+		evidence:             evidence,
+	}
+	if s.Result != nil {
+		session.result = &ExecutionResult{Data: s.Result.Data, Summary: s.Result.Summary, ContentType: s.Result.ContentType}
+	}
+	if s.Failure != nil {
+		session.failure = &FailureReason{Code: s.Failure.Code, Message: s.Failure.Message}
+	}
+	return session, nil
 }
 
 // ToSnapshot converts an ExecutionSession to a serializable snapshot.

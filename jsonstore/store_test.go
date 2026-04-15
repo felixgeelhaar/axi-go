@@ -136,7 +136,7 @@ func TestPluginStore_SaveExistsDelete(t *testing.T) {
 	}
 }
 
-func TestSessionStore_SaveAndGet(t *testing.T) {
+func TestSessionStore_SaveAndGet_Pending(t *testing.T) {
 	dir := t.TempDir()
 	store, _ := jsonstore.NewSessionStore(dir)
 
@@ -154,5 +154,62 @@ func TestSessionStore_SaveAndGet(t *testing.T) {
 	}
 	if got.ActionName() != "greet" {
 		t.Errorf("expected greet, got %s", got.ActionName())
+	}
+	if got.Status() != domain.StatusPending {
+		t.Errorf("expected pending, got %s", got.Status())
+	}
+}
+
+func TestSessionStore_SaveAndGet_Succeeded(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s2", "greet", map[string]any{"name": "world"})
+	_ = session.MarkValidated()
+	_ = session.MarkResolved([]domain.CapabilityName{"string.upper"})
+	_ = session.MarkRunning()
+	session.AppendEvidence(domain.EvidenceRecord{Kind: "log", Source: "test", Value: "ran", Timestamp: 1234567890})
+	_ = session.Succeed(domain.ExecutionResult{Data: "Hello!", Summary: "greeted", ContentType: "text/plain"})
+
+	_ = store.Save(session)
+	got, err := store.Get("s2")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Status() != domain.StatusSucceeded {
+		t.Errorf("expected succeeded, got %s", got.Status())
+	}
+	if got.Result() == nil || got.Result().Data != "Hello!" {
+		t.Errorf("expected result Hello!, got %v", got.Result())
+	}
+	if got.Result().ContentType != "text/plain" {
+		t.Errorf("expected text/plain, got %s", got.Result().ContentType)
+	}
+	if len(got.Evidence()) != 1 || got.Evidence()[0].Timestamp != 1234567890 {
+		t.Errorf("expected evidence with timestamp, got %v", got.Evidence())
+	}
+	if len(got.ResolvedCapabilities()) != 1 || got.ResolvedCapabilities()[0] != "string.upper" {
+		t.Errorf("expected resolved capabilities, got %v", got.ResolvedCapabilities())
+	}
+}
+
+func TestSessionStore_SaveAndGet_Failed(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s3", "fail", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkRunning()
+	_ = session.Fail(domain.FailureReason{Code: "ERR", Message: "boom"})
+
+	_ = store.Save(session)
+	got, _ := store.Get("s3")
+
+	if got.Status() != domain.StatusFailed {
+		t.Errorf("expected failed, got %s", got.Status())
+	}
+	if got.Failure() == nil || got.Failure().Code != "ERR" {
+		t.Errorf("expected failure reason, got %v", got.Failure())
 	}
 }

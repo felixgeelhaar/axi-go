@@ -239,18 +239,7 @@ func (s *SessionStore) Get(id domain.ExecutionSessionID) (*domain.ExecutionSessi
 	if err := readJSON(filepath.Join(s.dir, string(id)+".json"), &snap); err != nil {
 		return nil, &domain.ErrNotFound{Entity: "session", ID: string(id)}
 	}
-	// Sessions are read-only snapshots from disk — reconstruct a new session.
-	session, err := domain.NewExecutionSession(
-		domain.ExecutionSessionID(snap.ID),
-		domain.ActionName(snap.ActionName),
-		snap.Input,
-	)
-	if err != nil {
-		return nil, err
-	}
-	// Replay state transitions to reach the saved status.
-	// This is a simplified reconstruction — it sets the final state directly.
-	return session, nil
+	return domain.SessionFromSnapshot(snap)
 }
 
 // --- helpers ---
