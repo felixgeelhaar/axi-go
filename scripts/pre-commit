@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== pre-commit: running quality checks ==="
+
+# 1. Format + lint (golangci-lint v2 handles gofmt, goimports, gocritic, etc.)
+echo "--- golangci-lint fmt ---"
+FMT_OUTPUT=$(golangci-lint fmt --diff ./... 2>&1)
+if [ -n "$FMT_OUTPUT" ]; then
+    echo "ERROR: Files need formatting. Run 'make fmt' to fix."
+    echo "$FMT_OUTPUT"
+    exit 1
+fi
+
+echo "--- golangci-lint run ---"
+golangci-lint run ./...
+
+# 2. Go vet
+echo "--- go vet ---"
+go vet ./...
+
+# 3. Tests (skip coverage for speed)
+echo "--- go test ---"
+go test ./... -count=1
+
+# NOTE: nox scan and coverctl are skipped in pre-commit for speed.
+# Run 'make check' or 'make security' / 'make cover' for the full suite.
+
+echo "=== pre-commit: all checks passed ==="

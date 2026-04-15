@@ -1,0 +1,36 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+*.out
+
+# Coverage
+*.cov
+coverage.out
+coverage.html
+
+# Security scanning
+.nox/
+findings.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code local state
+.claude/
+
+# Relicta
+.relicta/
+
+# OS
+.DS_Store
