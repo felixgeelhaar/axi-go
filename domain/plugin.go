@@ -78,7 +78,17 @@ func (p *PluginContribution) Activate() error {
 
 // Accessors.
 
-func (p *PluginContribution) PluginID() PluginID                    { return p.pluginID }
-func (p *PluginContribution) Actions() []*ActionDefinition          { return p.actions }
-func (p *PluginContribution) Capabilities() []*CapabilityDefinition { return p.capabilities }
-func (p *PluginContribution) Status() ContributionStatus            { return p.status }
+func (p *PluginContribution) PluginID() PluginID         { return p.pluginID }
+func (p *PluginContribution) Status() ContributionStatus { return p.status }
+
+func (p *PluginContribution) Actions() []*ActionDefinition {
+	out := make([]*ActionDefinition, len(p.actions))
+	copy(out, p.actions)
+	return out
+}
+
+func (p *PluginContribution) Capabilities() []*CapabilityDefinition {
+	out := make([]*CapabilityDefinition, len(p.capabilities))
+	copy(out, p.capabilities)
+	return out
+}

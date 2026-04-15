@@ -102,14 +102,21 @@ func (s *ExecutionSession) transitionTo(target ExecutionStatus) error {
 
 // Accessors.
 
-func (s *ExecutionSession) ID() ExecutionSessionID     { return s.id }
-func (s *ExecutionSession) ActionName() ActionName     { return s.actionName }
-func (s *ExecutionSession) Input() any                 { return s.input }
-func (s *ExecutionSession) Status() ExecutionStatus    { return s.status }
-func (s *ExecutionSession) Evidence() []EvidenceRecord { return s.evidence }
-func (s *ExecutionSession) Result() *ExecutionResult   { return s.result }
-func (s *ExecutionSession) Failure() *FailureReason    { return s.failure }
+func (s *ExecutionSession) ID() ExecutionSessionID   { return s.id }
+func (s *ExecutionSession) ActionName() ActionName   { return s.actionName }
+func (s *ExecutionSession) Input() any               { return s.input }
+func (s *ExecutionSession) Status() ExecutionStatus  { return s.status }
+func (s *ExecutionSession) Result() *ExecutionResult { return s.result }
+func (s *ExecutionSession) Failure() *FailureReason  { return s.failure }
+
+func (s *ExecutionSession) Evidence() []EvidenceRecord {
+	out := make([]EvidenceRecord, len(s.evidence))
+	copy(out, s.evidence)
+	return out
+}
 
 func (s *ExecutionSession) ResolvedCapabilities() []CapabilityName {
-	return s.resolvedCapabilities
+	out := make([]CapabilityName, len(s.resolvedCapabilities))
+	copy(out, s.resolvedCapabilities)
+	return out
 }

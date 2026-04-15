@@ -98,6 +98,16 @@ const (
 	EffectExternal EffectLevel = "external"
 )
 
+// ValidEffectLevel returns true if the given level is a known effect level.
+func ValidEffectLevel(level EffectLevel) bool {
+	switch level {
+	case EffectNone, EffectLocal, EffectExternal:
+		return true
+	default:
+		return false
+	}
+}
+
 type EffectProfile struct {
 	Level EffectLevel
 }

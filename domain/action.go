@@ -59,11 +59,15 @@ func (a *ActionDefinition) IsBound() bool {
 
 // Accessors.
 
-func (a *ActionDefinition) Name() ActionName                       { return a.name }
-func (a *ActionDefinition) Description() string                    { return a.description }
-func (a *ActionDefinition) InputContract() Contract                { return a.inputContract }
-func (a *ActionDefinition) OutputContract() Contract               { return a.outputContract }
-func (a *ActionDefinition) Requirements() RequirementSet           { return a.requirements }
+func (a *ActionDefinition) Name() ActionName         { return a.name }
+func (a *ActionDefinition) Description() string      { return a.description }
+func (a *ActionDefinition) InputContract() Contract  { return a.inputContract }
+func (a *ActionDefinition) OutputContract() Contract { return a.outputContract }
+func (a *ActionDefinition) Requirements() RequirementSet {
+	out := make(RequirementSet, len(a.requirements))
+	copy(out, a.requirements)
+	return out
+}
 func (a *ActionDefinition) EffectProfile() EffectProfile           { return a.effectProfile }
 func (a *ActionDefinition) IdempotencyProfile() IdempotencyProfile { return a.idempotencyProfile }
 func (a *ActionDefinition) ExecutionBinding() ActionExecutorRef    { return a.executionBinding }

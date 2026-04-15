@@ -213,6 +213,9 @@ func (r *RegisterPluginRequest) ToDomain() (*domain.PluginContribution, error) {
 		effectLevel := domain.EffectNone
 		if a.EffectLevel != "" {
 			effectLevel = domain.EffectLevel(a.EffectLevel)
+			if !domain.ValidEffectLevel(effectLevel) {
+				return nil, fmt.Errorf("action %d: invalid effect level %q (must be none, local, or external)", i, a.EffectLevel)
+			}
 		}
 
 		action, err := domain.NewActionDefinition(

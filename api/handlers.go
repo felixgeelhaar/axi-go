@@ -1,8 +1,8 @@
 package api
 
 import (
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/felixgeelhaar/axi-go/application"
 	"github.com/felixgeelhaar/axi-go/domain"
@@ -18,7 +18,11 @@ func (s *Server) listActions(c *Context) {
 }
 
 func (s *Server) getAction(c *Context) {
-	name := domain.ActionName(c.Param("name"))
+	name, err := domain.NewActionName(c.Param("name"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
 	action, err := s.actionRepo.GetByName(name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
@@ -38,24 +42,23 @@ func (s *Server) handleExecuteAction(c *Context) {
 		return
 	}
 
+	actionName, err := domain.NewActionName(req.ActionName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+
 	input := application.ExecuteActionInput{
-		ActionName: domain.ActionName(req.ActionName),
+		ActionName: actionName,
 		Input:      req.Input,
 	}
 
 	output, err := s.executeAction.Execute(c.Request.Context(), input)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "not found") {
-			status = http.StatusNotFound
-		} else if strings.Contains(err.Error(), "validation failed") {
-			status = http.StatusBadRequest
-		}
-		c.JSON(status, ErrorResponse{Error: err.Error()})
+		c.JSON(domainErrorStatus(err), ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	// 200 even on action failure — failure is a valid domain outcome.
 	c.JSON(http.StatusOK, ExecuteActionResponseFromOutput(output))
 }
 
@@ -96,11 +99,7 @@ func (s *Server) handleRegisterPlugin(c *Context) {
 	}
 
 	if err := s.registerPlugin.Execute(contribution); err != nil {
-		status := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "already registered") || strings.Contains(err.Error(), "conflicts") {
-			status = http.StatusConflict
-		}
-		c.JSON(status, ErrorResponse{Error: err.Error()})
+		c.JSON(domainErrorStatus(err), ErrorResponse{Error: err.Error()})
 		return
 	}
 
@@ -108,4 +107,21 @@ func (s *Server) handleRegisterPlugin(c *Context) {
 		"plugin_id": req.PluginID,
 		"status":    "active",
 	})
+}
+
+// domainErrorStatus maps domain error types to HTTP status codes.
+func domainErrorStatus(err error) int {
+	var notFound *domain.ErrNotFound
+	if errors.As(err, &notFound) {
+		return http.StatusNotFound
+	}
+	var conflict *domain.ErrConflict
+	if errors.As(err, &conflict) {
+		return http.StatusConflict
+	}
+	var validation *domain.ErrValidation
+	if errors.As(err, &validation) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
 }

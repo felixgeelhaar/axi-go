@@ -1,7 +1,5 @@
 package domain
 
-import "fmt"
-
 // CapabilityResolutionService resolves required capabilities from the registry.
 type CapabilityResolutionService struct {
 	capabilityRepo CapabilityRepository
@@ -18,10 +16,10 @@ func (s *CapabilityResolutionService) Resolve(requirements RequirementSet) ([]*C
 	for _, req := range requirements {
 		cap, err := s.capabilityRepo.GetByName(req.Capability)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve capability %q: %w", req.Capability, err)
+			return nil, &ErrNotFound{Entity: "capability", ID: string(req.Capability)}
 		}
 		if cap == nil {
-			return nil, fmt.Errorf("required capability %q not found", req.Capability)
+			return nil, &ErrNotFound{Entity: "capability", ID: string(req.Capability)}
 		}
 		resolved = append(resolved, cap)
 	}

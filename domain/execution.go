@@ -67,12 +67,12 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 	// Load the action definition.
 	action, err := s.actionRepo.GetByName(session.ActionName())
 	if err != nil {
-		return fmt.Errorf("action %q not found: %w", session.ActionName(), err)
+		return &ErrNotFound{Entity: "action", ID: string(session.ActionName())}
 	}
 
 	// Validate input against contract.
 	if err := s.validator.Validate(action.InputContract(), session.Input()); err != nil {
-		return fmt.Errorf("input validation failed: %w", err)
+		return &ErrValidation{Message: fmt.Sprintf("input validation failed: %v", err)}
 	}
 	if err := session.MarkValidated(); err != nil {
 		return err

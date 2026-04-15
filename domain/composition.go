@@ -61,22 +61,22 @@ func (s *CompositionService) RegisterPlugin(plugin Plugin) error {
 // RegisterContribution validates, detects conflicts, persists, and activates a contribution.
 func (s *CompositionService) RegisterContribution(contribution *PluginContribution) error {
 	if s.pluginRepo.Exists(contribution.PluginID()) {
-		return fmt.Errorf("plugin %q is already registered", contribution.PluginID())
+		return &ErrConflict{Message: fmt.Sprintf("plugin %q is already registered", contribution.PluginID())}
 	}
 
 	// Check global action name uniqueness.
 	for _, action := range contribution.Actions() {
-		existing, err := s.actionRepo.GetByName(action.Name())
-		if err == nil && existing != nil {
-			return fmt.Errorf("action name %q conflicts with existing registration", action.Name())
+		_, err := s.actionRepo.GetByName(action.Name())
+		if err == nil {
+			return &ErrConflict{Message: fmt.Sprintf("action name %q conflicts with existing registration", action.Name())}
 		}
 	}
 
 	// Check global capability name uniqueness.
 	for _, cap := range contribution.Capabilities() {
-		existing, err := s.capabilityRepo.GetByName(cap.Name())
-		if err == nil && existing != nil {
-			return fmt.Errorf("capability name %q conflicts with existing registration", cap.Name())
+		_, err := s.capabilityRepo.GetByName(cap.Name())
+		if err == nil {
+			return &ErrConflict{Message: fmt.Sprintf("capability name %q conflicts with existing registration", cap.Name())}
 		}
 	}
 
