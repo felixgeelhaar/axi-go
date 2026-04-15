@@ -7,104 +7,90 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 make check          # Full suite: fmt + lint + test + security
 make test           # Run tests
-make lint           # golangci-lint (gocritic, errcheck, govet, staticcheck, unused)
-make fmt            # Auto-fix formatting (gofmt + goimports via golangci-lint)
+make lint           # golangci-lint
+make fmt            # Auto-fix formatting
 make cover          # Tests with coverage + coverctl record
 make security       # nox security scan
 make install-hooks  # Install pre-commit git hook
+go test ./... -race # Race detector (important for async execution)
 ```
 
-Single test: `go test ./domain/... -run TestSession -v -count=1`
+Single test: `go test ./domain/... -run TestBudget -v -count=1`
 
 Zero external dependencies — standard library only.
-
-## What axi-go Is
-
-A domain-driven execution kernel for semantic actions. Actions express intent, capabilities express mechanics, plugins contribute both, and execution sessions track the full lifecycle with evidence and safety controls.
 
 ## Architecture
 
 ```
-domain/          Zero deps. Aggregates, services, port interfaces.
-application/     Use cases: RegisterPlugin, ExecuteAction.
-api/             Gin-like HTTP API on stdlib net/http.
-inmemory/        Thread-safe in-memory adapters.
-cmd/server/      Minimal entrypoint.
+domain/          Zero deps. Aggregates, services, port interfaces, snapshot types.
+application/     Use cases: RegisterPlugin, ExecuteAction (sync + async), Approve/Reject.
+api/             Gin-like HTTP API on stdlib net/http. Config, middleware, auth.
+inmemory/        Thread-safe in-memory adapters. StdLogger.
+jsonstore/       File-based JSON persistence adapter.
+cmd/server/      Entrypoint with config, logging, graceful shutdown.
 example/         Working example with sample greeter plugin.
 ```
 
-Dependency direction: `domain` <- `application` <- `api`/`inmemory` <- `cmd/server`
+Dependency direction: `domain` <- `application` <- `api`/`inmemory`/`jsonstore` <- `cmd/server`
 
-### `domain/` — Core
+### `domain/` — Core (zero deps)
 
-**Aggregates** (unexported fields, constructor-enforced invariants):
-- **ActionDefinition** — semantic action with typed contracts, requirements, effect/idempotency profiles, executor binding
-- **CapabilityDefinition** — executable capability with contracts and executor binding
-- **PluginContribution** — groups actions + capabilities; must activate before use
+**Aggregates** (unexported fields, thread-safe via sync.RWMutex):
+- **ActionDefinition** — semantic action with typed contracts, requirements, effect/idempotency profiles
+- **CapabilityDefinition** — executable capability with contracts
+- **PluginContribution** — groups actions + capabilities
 - **ExecutionSession** — state machine: `Pending -> Validated -> Resolved -> [AwaitingApproval] -> Running -> Succeeded|Failed|Rejected`
 
 **Domain services:**
-- **CompositionService** — registers/deregisters plugins, enforces uniqueness, rollback on partial failure
-- **CapabilityResolutionService** — resolves RequirementSet into CapabilityDefinitions
-- **ActionExecutionService** — orchestrates validate -> resolve -> [approve] -> execute -> evidence -> result/failure
+- **CompositionService** — register/deregister plugins with mutex serialization, rollback on failure
+- **CapabilityResolutionService** — resolves requirements
+- **ActionExecutionService** — validate -> resolve -> [approve] -> execute with budget/rate-limit enforcement, output validation
 
 **Key types:**
-- **Plugin** / **LifecyclePlugin** (`plugin.go`) — contribute actions/capabilities, optional Init(config)/Close()
-- **PluginBundle** (`bundle.go`) — pairs contribution with executors for atomic registration
-- **Contract** (`values.go`) — fields with `Name`, `Type`, `Description`, `Required`, `Example`
-- **EffectProfile** — 5 levels: `none`, `read-local`, `write-local`, `read-external`, `write-external`
-- **ExecutionBudget** (`budget.go`) — max duration, max capability invocations
-- **RateLimiter** (`budget.go`) — port interface for action-level rate limiting
-- **Pipeline** (`pipeline.go`) — sequential capability chaining primitive
-- **ComposableCapabilityExecutor** (`execution.go`) — capabilities that invoke other capabilities
-- **EvidenceRecord** — includes `Timestamp` (unix ms)
-- **ExecutionResult** — includes `ContentType` for agent interpretation
-- **Typed errors** (`errors.go`) — `ErrNotFound`, `ErrConflict`, `ErrValidation`
-
-**Port interfaces** (all in domain):
-- Repositories: `ActionRepository`, `CapabilityRepository`, `PluginRepository`, `SessionRepository`
-- Executors: `ActionExecutor`, `CapabilityInvoker`, `CapabilityExecutor`, `ComposableCapabilityExecutor`
-- Lookups: `ActionExecutorLookup`, `CapabilityExecutorLookup`
-- Validation: `ContractValidator`
-- Safety: `RateLimiter`
+- **Plugin** / **LifecyclePlugin** — contribute actions/capabilities, optional Init(config)/Close()
+- **PluginBundle** — atomic registration of contribution + executors
+- **Contract** — fields with Name, Type, Description, Required, Example
+- **EffectProfile** — 5 levels: none, read-local, write-local, read-external, write-external
+- **ExecutionBudget** — max duration, max capability invocations
+- **RateLimiter** — port interface for action-level rate limiting
+- **Pipeline** — sequential capability chaining
+- **ComposableCapabilityExecutor** — capabilities that invoke other capabilities
+- **Logger** — structured logging port (Debug/Info/Warn/Error with fields)
+- **Typed errors** — ErrNotFound, ErrConflict, ErrValidation
+- **Snapshot types** — serializable forms for persistence adapters
 
 ### `api/` — HTTP API
 
-Gin-like router (`Engine`/`Context`/`RouterGroup`) on Go 1.22+ `http.ServeMux`. No external deps.
+Gin-like router on Go 1.22+ `http.ServeMux`. Graceful shutdown, configurable timeouts.
 
-Routes:
-- `GET /health` — health check
-- `GET /api/v1/actions` — list (envelope: `{items, count}`)
-- `GET /api/v1/actions/{name}` — get action
-- `POST /api/v1/actions/execute` — execute (sync: 200, async: 202, approval needed: 200 with `requires_approval`)
-- `GET /api/v1/sessions/{id}` — poll session status
-- `POST /api/v1/sessions/{id}/approve` — approve pending session
-- `POST /api/v1/sessions/{id}/reject` — reject pending session
-- `GET /api/v1/capabilities` — list (envelope)
-- `POST /api/v1/plugins` — register (201/409)
-- `DELETE /api/v1/plugins/{id}` — deregister (204)
+Routes: `/health`, `/api/v1/actions`, `/api/v1/actions/{name}`, `/api/v1/actions/execute` (sync/async), `/api/v1/sessions/{id}`, `/api/v1/sessions/{id}/approve`, `/api/v1/sessions/{id}/reject`, `/api/v1/capabilities`, `/api/v1/plugins`, `DELETE /api/v1/plugins/{id}`
 
-Error responses include `error_code` field (`not_found`, `conflict`, `validation_error`, `internal_error`).
+Features: error_code in responses, list envelopes, ConfigFromEnv (AXI_* env vars), AuthMiddleware + BearerTokenAuth.
+
+### `jsonstore/` — File-based persistence
+
+JSON file adapter implementing all repository interfaces. Stores data as `{dir}/actions/*.json`, `capabilities/*.json`, etc. Uses domain snapshot types for serialization.
+
+### `inmemory/` — In-memory adapters + StdLogger
+
+Thread-safe repos, executor registries, validator, ID generator, structured logger.
 
 ## Key Design Rules
 
 - **Domain has zero imports** outside stdlib
-- **Aggregates enforce invariants** — unexported fields, defensive slice copies
-- **All port interfaces live in domain**
-- **PluginBundle** is the preferred registration method
-- **Action failure is a valid outcome**, not a Go error
+- **ExecutionSession is thread-safe** (sync.RWMutex) for async execution
+- **CompositionService is serialized** (sync.Mutex) preventing TOCTOU races
 - **write-external actions require approval** before execution
-- **Names must match** `^[a-zA-Z][a-zA-Z0-9._-]*$`
-- **Executor code must be compiled in** — HTTP API registers metadata only
+- **Output contracts are validated** — results checked before Succeeded
+- **Budget enforced per invocation** — max invocations and max duration
+- **Context cancellation checked** between execution phases
 
-## Execution Flow
+## Configuration
 
-`ActionExecutionService.Execute`:
-1. Rate limit check
-2. Load ActionDefinition -> validate input -> `Validated`
-3. Resolve RequirementSet -> `Resolved`
-4. If write-external: pause at `AwaitingApproval` (requires Approve/Reject)
-5. Build budget-enforced `CapabilityInvoker` -> execute -> `Running`
-6. Collect evidence -> `Succeeded` (with result) or `Failed` (with reason)
-
-Async mode: `ExecuteAsync` returns immediately with session in `Pending`, executes in background goroutine. Poll via `GET /sessions/{id}`.
+Environment variables (all optional, sensible defaults):
+- `AXI_ADDR` — listen address (default `:8080`)
+- `AXI_READ_TIMEOUT_SECS` — HTTP read timeout (default 15)
+- `AXI_WRITE_TIMEOUT_SECS` — HTTP write timeout (default 30)
+- `AXI_IDLE_TIMEOUT_SECS` — HTTP idle timeout (default 60)
+- `AXI_MAX_DURATION_SECS` — max execution duration (default 300)
+- `AXI_MAX_INVOCATIONS` — max capability invocations per session (default 100)
