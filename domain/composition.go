@@ -29,6 +29,7 @@ type CapabilityRepository interface {
 type PluginRepository interface {
 	Save(contribution *PluginContribution) error
 	GetByID(id PluginID) (*PluginContribution, error)
+	Delete(id PluginID) error
 	Exists(id PluginID) bool
 }
 
@@ -82,8 +83,20 @@ func (s *CompositionService) RegisterBundle(
 	return s.RegisterContribution(bundle.Contribution)
 }
 
-// RegisterPlugin accepts a Plugin, calls Contribute(), and registers the result.
+// RegisterPlugin accepts a Plugin, optionally initializes it with config,
+// calls Contribute(), and registers the result.
 func (s *CompositionService) RegisterPlugin(plugin Plugin) error {
+	return s.RegisterPluginWithConfig(plugin, nil)
+}
+
+// RegisterPluginWithConfig accepts a Plugin with configuration.
+// If the plugin implements LifecyclePlugin, Init(config) is called before Contribute().
+func (s *CompositionService) RegisterPluginWithConfig(plugin Plugin, config PluginConfig) error {
+	if lp, ok := plugin.(LifecyclePlugin); ok {
+		if err := lp.Init(config); err != nil {
+			return fmt.Errorf("plugin init failed: %w", err)
+		}
+	}
 	contribution, err := plugin.Contribute()
 	if err != nil {
 		return fmt.Errorf("plugin contribution failed: %w", err)
@@ -153,4 +166,21 @@ func (s *CompositionService) RegisterContribution(contribution *PluginContributi
 	}
 
 	return nil
+}
+
+// DeregisterPlugin removes a plugin and all its contributed actions and capabilities.
+func (s *CompositionService) DeregisterPlugin(id PluginID) error {
+	contribution, err := s.pluginRepo.GetByID(id)
+	if err != nil {
+		return &ErrNotFound{Entity: "plugin", ID: string(id)}
+	}
+
+	for _, action := range contribution.Actions() {
+		_ = s.actionRepo.Delete(action.Name())
+	}
+	for _, cap := range contribution.Capabilities() {
+		_ = s.capabilityRepo.Delete(cap.Name())
+	}
+
+	return s.pluginRepo.Delete(id)
 }

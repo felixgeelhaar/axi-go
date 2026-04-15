@@ -20,6 +20,12 @@ type CapabilityExecutor interface {
 	Execute(ctx context.Context, input any) (any, error)
 }
 
+// ComposableCapabilityExecutor is an optional interface for capabilities
+// that need to invoke other capabilities during execution.
+type ComposableCapabilityExecutor interface {
+	ExecuteWithInvoker(ctx context.Context, input any, invoker CapabilityInvoker) (any, error)
+}
+
 // ActionExecutorLookup finds an executor for an action binding.
 type ActionExecutorLookup interface {
 	GetActionExecutor(ref ActionExecutorRef) (ActionExecutor, error)
@@ -42,6 +48,8 @@ type ActionExecutionService struct {
 	validator         ContractValidator
 	actionExecutors   ActionExecutorLookup
 	capExecutors      CapabilityExecutorLookup
+	rateLimiter       RateLimiter
+	defaultBudget     ExecutionBudget
 }
 
 // NewActionExecutionService creates an ActionExecutionService.
@@ -58,13 +66,29 @@ func NewActionExecutionService(
 		validator:         validator,
 		actionExecutors:   actionExecutors,
 		capExecutors:      capExecutors,
+		rateLimiter:       &NoopRateLimiter{},
 	}
+}
+
+// SetRateLimiter configures a rate limiter for action execution.
+func (s *ActionExecutionService) SetRateLimiter(rl RateLimiter) {
+	s.rateLimiter = rl
+}
+
+// SetDefaultBudget configures the default execution budget for all sessions.
+func (s *ActionExecutionService) SetDefaultBudget(budget ExecutionBudget) {
+	s.defaultBudget = budget
 }
 
 // Execute runs the execution flow on a session.
 // For actions with EffectExternal, the session pauses at AwaitingApproval
 // and must be resumed via Resume() after approval. Otherwise runs to completion.
 func (s *ActionExecutionService) Execute(ctx context.Context, session *ExecutionSession) error {
+	// Rate limit check.
+	if err := s.rateLimiter.Allow(session.ActionName()); err != nil {
+		return &ErrValidation{Message: fmt.Sprintf("rate limited: %v", err)}
+	}
+
 	action, err := s.actionRepo.GetByName(session.ActionName())
 	if err != nil {
 		return &ErrNotFound{Entity: "action", ID: string(session.ActionName())}
@@ -91,8 +115,8 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 		return err
 	}
 
-	// Check if approval is required for external effects.
-	if action.EffectProfile().Level == EffectExternal {
+	// Check if approval is required for write effects on external systems.
+	if action.EffectProfile().IsWriteEffect() && action.EffectProfile().IsExternalEffect() {
 		if err := session.MarkAwaitingApproval(); err != nil {
 			return err
 		}
@@ -120,7 +144,7 @@ func (s *ActionExecutionService) Resume(ctx context.Context, session *ExecutionS
 
 // run executes the action (Resolved/Approved → Running → Succeeded/Failed).
 func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSession, action *ActionDefinition) error {
-	// Build invoker.
+	// Build invoker with budget enforcement.
 	resolvedCaps, err := s.resolutionService.Resolve(action.Requirements())
 	if err != nil {
 		return fmt.Errorf("capability resolution failed: %w", err)
@@ -172,6 +196,7 @@ func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities 
 		ctx:          ctx,
 		capabilities: capMap,
 		executors:    s.capExecutors,
+		budget:       newBudgetEnforcer(s.defaultBudget),
 	}, nil
 }
 
@@ -179,9 +204,13 @@ type boundInvoker struct {
 	ctx          context.Context
 	capabilities map[CapabilityName]*CapabilityDefinition
 	executors    CapabilityExecutorLookup
+	budget       *budgetEnforcer
 }
 
 func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
+	if err := i.budget.checkInvocation(); err != nil {
+		return nil, err
+	}
 	cap, ok := i.capabilities[name]
 	if !ok {
 		return nil, fmt.Errorf("capability %q not available in this execution context", name)
@@ -189,6 +218,10 @@ func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
 	executor, err := i.executors.GetCapabilityExecutor(cap.ExecutionBinding())
 	if err != nil {
 		return nil, fmt.Errorf("executor for capability %q not found: %w", name, err)
+	}
+	// If the executor supports composition, pass the invoker so it can call other capabilities.
+	if composable, ok := executor.(ComposableCapabilityExecutor); ok {
+		return composable.ExecuteWithInvoker(i.ctx, input, i)
 	}
 	return executor.Execute(i.ctx, input)
 }

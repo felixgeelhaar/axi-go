@@ -13,6 +13,7 @@ import (
 type ExecuteActionRequest struct {
 	ActionName string         `json:"action_name"`
 	Input      map[string]any `json:"input"`
+	Async      bool           `json:"async,omitempty"`
 }
 
 type RegisterPluginRequest struct {
@@ -275,7 +276,7 @@ func (r *RegisterPluginRequest) ToDomain() (*domain.PluginContribution, error) {
 		if a.EffectLevel != "" {
 			effectLevel = domain.EffectLevel(a.EffectLevel)
 			if !domain.ValidEffectLevel(effectLevel) {
-				return nil, fmt.Errorf("action %q: invalid effect level %q (must be none, local, or external)", a.Name, a.EffectLevel)
+				return nil, fmt.Errorf("action %q: invalid effect level %q (must be none, read-local, write-local, read-external, or write-external)", a.Name, a.EffectLevel)
 			}
 		}
 

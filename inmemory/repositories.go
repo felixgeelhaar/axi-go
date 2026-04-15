@@ -136,6 +136,13 @@ func (r *PluginContributionRepository) GetByID(id domain.PluginID) (*domain.Plug
 	return p, nil
 }
 
+func (r *PluginContributionRepository) Delete(id domain.PluginID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.plugins, id)
+	return nil
+}
+
 func (r *PluginContributionRepository) Exists(id domain.PluginID) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

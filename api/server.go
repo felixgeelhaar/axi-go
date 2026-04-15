@@ -48,6 +48,7 @@ func (s *Server) setupRoutes() {
 	v1.POST("/sessions/{id}/reject", s.rejectSession)
 	v1.GET("/capabilities", s.listCapabilities)
 	v1.POST("/plugins", s.handleRegisterPlugin)
+	v1.DELETE("/plugins/{id}", s.handleDeregisterPlugin)
 }
 
 // Engine returns the underlying Engine for testing or composition.

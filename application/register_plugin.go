@@ -17,3 +17,8 @@ func (uc *RegisterPluginContributionUseCase) Execute(contribution *domain.Plugin
 func (uc *RegisterPluginContributionUseCase) ExecutePlugin(plugin domain.Plugin) error {
 	return uc.CompositionService.RegisterPlugin(plugin)
 }
+
+// Deregister removes a plugin and all its contributed actions/capabilities.
+func (uc *RegisterPluginContributionUseCase) Deregister(id domain.PluginID) error {
+	return uc.CompositionService.DeregisterPlugin(id)
+}

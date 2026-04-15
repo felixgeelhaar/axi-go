@@ -57,6 +57,16 @@ func (s *Server) handleExecuteAction(c *Context) {
 		Input:      req.Input,
 	}
 
+	if req.Async {
+		output, err := s.executeAction.ExecuteAsync(c.Request.Context(), input)
+		if err != nil {
+			c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
+			return
+		}
+		c.JSON(http.StatusAccepted, ExecuteActionResponseFromOutput(output))
+		return
+	}
+
 	output, err := s.executeAction.Execute(c.Request.Context(), input)
 	if err != nil {
 		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
@@ -137,6 +147,19 @@ func (s *Server) handleRegisterPlugin(c *Context) {
 		ActionCount: len(req.Actions),
 		CapCount:    len(req.Capabilities),
 	})
+}
+
+func (s *Server) handleDeregisterPlugin(c *Context) {
+	id, err := domain.NewPluginID(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorResponseFromErr(err))
+		return
+	}
+	if err := s.registerPlugin.Deregister(id); err != nil {
+		c.JSON(domainErrorStatus(err), errorResponseFromErr(err))
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // domainErrorStatus maps domain error types to HTTP status codes.

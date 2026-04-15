@@ -11,6 +11,17 @@ type Plugin interface {
 	Contribute() (*PluginContribution, error)
 }
 
+// LifecyclePlugin is an optional interface for plugins that need
+// initialization with configuration and cleanup on shutdown.
+type LifecyclePlugin interface {
+	Plugin
+	Init(config map[string]any) error
+	Close() error
+}
+
+// PluginConfig holds configuration passed to a LifecyclePlugin during Init.
+type PluginConfig = map[string]any
+
 // PluginContribution is the aggregate root for a contributed extension.
 type PluginContribution struct {
 	pluginID     PluginID

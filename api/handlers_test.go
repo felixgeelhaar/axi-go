@@ -341,7 +341,7 @@ func TestExecuteAction_ExternalEffect_PausesForApproval(t *testing.T) {
 			Name:        "send-email",
 			Description: "Sends an email (external effect)",
 			ExecutorRef: "exec.email",
-			EffectLevel: "external",
+			EffectLevel: "write-external",
 		}},
 	}
 	doRequest(srv, "POST", "/api/v1/plugins", plugin)
@@ -388,7 +388,7 @@ func TestExecuteAction_ExternalEffect_Rejected(t *testing.T) {
 			Name:        "delete-account",
 			Description: "Deletes an account (external effect)",
 			ExecutorRef: "exec.delete",
-			EffectLevel: "external",
+			EffectLevel: "write-external",
 		}},
 	}
 	doRequest(srv, "POST", "/api/v1/plugins", plugin)

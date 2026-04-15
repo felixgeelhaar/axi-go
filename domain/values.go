@@ -97,19 +97,37 @@ func NewRequirementSet(reqs ...Requirement) (RequirementSet, error) {
 type EffectLevel string
 
 const (
-	EffectNone     EffectLevel = "none"
-	EffectLocal    EffectLevel = "local"
-	EffectExternal EffectLevel = "external"
+	EffectNone          EffectLevel = "none"
+	EffectReadLocal     EffectLevel = "read-local"
+	EffectWriteLocal    EffectLevel = "write-local"
+	EffectReadExternal  EffectLevel = "read-external"
+	EffectWriteExternal EffectLevel = "write-external"
+
+	// Legacy aliases — these are Go constants that resolve to the new values.
+	// Note: the string values "local" and "external" are NOT valid in JSON/API.
+	// Use "write-local" and "write-external" instead.
+	EffectLocal    = EffectWriteLocal
+	EffectExternal = EffectWriteExternal
 )
 
 // ValidEffectLevel returns true if the given level is a known effect level.
 func ValidEffectLevel(level EffectLevel) bool {
 	switch level {
-	case EffectNone, EffectLocal, EffectExternal:
+	case EffectNone, EffectReadLocal, EffectWriteLocal, EffectReadExternal, EffectWriteExternal:
 		return true
 	default:
 		return false
 	}
+}
+
+// IsWriteEffect returns true if the effect level involves writes.
+func (p EffectProfile) IsWriteEffect() bool {
+	return p.Level == EffectWriteLocal || p.Level == EffectWriteExternal
+}
+
+// IsExternalEffect returns true if the effect level involves external systems.
+func (p EffectProfile) IsExternalEffect() bool {
+	return p.Level == EffectReadExternal || p.Level == EffectWriteExternal
 }
 
 type EffectProfile struct {
