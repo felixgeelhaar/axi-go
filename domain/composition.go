@@ -13,6 +13,7 @@ type CompositionService struct {
 type ActionRepository interface {
 	GetByName(name ActionName) (*ActionDefinition, error)
 	Save(action *ActionDefinition) error
+	Delete(name ActionName) error
 	List() []*ActionDefinition
 }
 
@@ -20,6 +21,7 @@ type ActionRepository interface {
 type CapabilityRepository interface {
 	GetByName(name CapabilityName) (*CapabilityDefinition, error)
 	Save(capability *CapabilityDefinition) error
+	Delete(name CapabilityName) error
 	List() []*CapabilityDefinition
 }
 
@@ -85,20 +87,37 @@ func (s *CompositionService) RegisterContribution(contribution *PluginContributi
 		return fmt.Errorf("cannot activate contribution: %w", err)
 	}
 
-	// Persist actions and capabilities.
-	for _, action := range contribution.Actions() {
-		if err := s.actionRepo.Save(action); err != nil {
-			return fmt.Errorf("failed to save action %q: %w", action.Name(), err)
+	// Persist actions, capabilities, and the contribution.
+	// Track what was saved so we can rollback on partial failure.
+	var savedActions []ActionName
+	var savedCaps []CapabilityName
+
+	rollback := func() {
+		for _, name := range savedActions {
+			_ = s.actionRepo.Delete(name)
 		}
-	}
-	for _, cap := range contribution.Capabilities() {
-		if err := s.capabilityRepo.Save(cap); err != nil {
-			return fmt.Errorf("failed to save capability %q: %w", cap.Name(), err)
+		for _, name := range savedCaps {
+			_ = s.capabilityRepo.Delete(name)
 		}
 	}
 
-	// Persist the contribution itself.
+	for _, action := range contribution.Actions() {
+		if err := s.actionRepo.Save(action); err != nil {
+			rollback()
+			return fmt.Errorf("failed to save action %q: %w", action.Name(), err)
+		}
+		savedActions = append(savedActions, action.Name())
+	}
+	for _, cap := range contribution.Capabilities() {
+		if err := s.capabilityRepo.Save(cap); err != nil {
+			rollback()
+			return fmt.Errorf("failed to save capability %q: %w", cap.Name(), err)
+		}
+		savedCaps = append(savedCaps, cap.Name())
+	}
+
 	if err := s.pluginRepo.Save(contribution); err != nil {
+		rollback()
 		return fmt.Errorf("failed to save plugin contribution: %w", err)
 	}
 

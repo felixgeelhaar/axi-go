@@ -38,6 +38,13 @@ func (r *fakeActionRepo) Save(a *domain.ActionDefinition) error {
 	return nil
 }
 
+func (r *fakeActionRepo) Delete(name domain.ActionName) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.actions, name)
+	return nil
+}
+
 func (r *fakeActionRepo) List() []*domain.ActionDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -71,6 +78,13 @@ func (r *fakeCapRepo) Save(c *domain.CapabilityDefinition) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.caps[c.Name()] = c
+	return nil
+}
+
+func (r *fakeCapRepo) Delete(name domain.CapabilityName) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.caps, name)
 	return nil
 }
 

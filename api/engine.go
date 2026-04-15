@@ -3,7 +3,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -30,7 +32,10 @@ func (c *Context) JSON(code int, obj any) {
 	c.Writer.WriteHeader(code)
 	c.status = code
 	c.written = true
-	_ = json.NewEncoder(c.Writer).Encode(obj)
+	if err := json.NewEncoder(c.Writer).Encode(obj); err != nil {
+		// Header already sent; log to stderr as last resort.
+		fmt.Fprintf(os.Stderr, "api: failed to encode JSON response: %v\n", err)
+	}
 }
 
 // ShouldBindJSON decodes the request body into the given struct.

@@ -45,7 +45,10 @@ func (uc *ExecuteActionUseCase) Execute(ctx context.Context, input ExecuteAction
 
 	if err := uc.ExecutionService.Execute(ctx, session); err != nil {
 		// Persist the session even on error (it may have partial state).
-		_ = uc.SessionRepo.Save(session)
+		// Save error is secondary to the execution error, but we wrap both.
+		if saveErr := uc.SessionRepo.Save(session); saveErr != nil {
+			return nil, fmt.Errorf("execution failed: %w (also failed to persist session: %v)", err, saveErr)
+		}
 		return nil, fmt.Errorf("execution failed: %w", err)
 	}
 

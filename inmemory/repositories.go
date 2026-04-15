@@ -45,6 +45,13 @@ func (r *ActionDefinitionRepository) Save(action *domain.ActionDefinition) error
 	return nil
 }
 
+func (r *ActionDefinitionRepository) Delete(name domain.ActionName) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.actions, name)
+	return nil
+}
+
 func (r *ActionDefinitionRepository) List() []*domain.ActionDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -81,6 +88,13 @@ func (r *CapabilityDefinitionRepository) Save(capability *domain.CapabilityDefin
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.capabilities[capability.Name()] = capability
+	return nil
+}
+
+func (r *CapabilityDefinitionRepository) Delete(name domain.CapabilityName) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.capabilities, name)
 	return nil
 }
 
