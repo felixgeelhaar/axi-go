@@ -50,6 +50,7 @@ type ActionExecutionService struct {
 	capExecutors      CapabilityExecutorLookup
 	rateLimiter       RateLimiter
 	defaultBudget     ExecutionBudget
+	logger            Logger
 }
 
 // NewActionExecutionService creates an ActionExecutionService.
@@ -67,7 +68,13 @@ func NewActionExecutionService(
 		actionExecutors:   actionExecutors,
 		capExecutors:      capExecutors,
 		rateLimiter:       &NoopRateLimiter{},
+		logger:            &NopLogger{},
 	}
+}
+
+// SetLogger configures a logger for the execution service.
+func (s *ActionExecutionService) SetLogger(logger Logger) {
+	s.logger = logger
 }
 
 // SetRateLimiter configures a rate limiter for action execution.
@@ -84,6 +91,11 @@ func (s *ActionExecutionService) SetDefaultBudget(budget ExecutionBudget) {
 // For actions with EffectExternal, the session pauses at AwaitingApproval
 // and must be resumed via Resume() after approval. Otherwise runs to completion.
 func (s *ActionExecutionService) Execute(ctx context.Context, session *ExecutionSession) error {
+	s.logger.Info("executing action",
+		F("session_id", string(session.ID())),
+		F("action", string(session.ActionName())),
+	)
+
 	// Rate limit check.
 	if err := s.rateLimiter.Allow(session.ActionName()); err != nil {
 		return &ErrValidation{Message: fmt.Sprintf("rate limited: %v", err)}
@@ -190,6 +202,16 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 			return err
 		}
 		return nil
+	}
+
+	// Validate output against contract.
+	if !action.OutputContract().IsEmpty() {
+		if err := s.validator.Validate(action.OutputContract(), result.Data); err != nil {
+			if failErr := session.Fail(FailureReason{Code: "OUTPUT_VALIDATION_ERROR", Message: err.Error()}); failErr != nil {
+				return failErr
+			}
+			return nil
+		}
 	}
 
 	return session.Succeed(result)

@@ -63,15 +63,21 @@ func (s *Server) Engine() *Engine {
 	return s.engine
 }
 
-// Run starts the server on the given address with graceful shutdown.
-// It listens for SIGINT/SIGTERM and drains connections before exiting.
+// Run starts the server with default config and graceful shutdown.
 func (s *Server) Run(addr string) error {
+	cfg := DefaultConfig()
+	cfg.Addr = addr
+	return s.RunWithConfig(cfg)
+}
+
+// RunWithConfig starts the server with the given config and graceful shutdown.
+func (s *Server) RunWithConfig(cfg Config) error {
 	srv := &http.Server{
-		Addr:         addr,
+		Addr:         cfg.Addr,
 		Handler:      s.engine.Handler(),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
 	// Start server in background.

@@ -12,6 +12,9 @@ import (
 )
 
 func main() {
+	cfg := api.ConfigFromEnv()
+	logger := inmemory.NewStdLogger(inmemory.LevelInfo)
+
 	actionRepo := inmemory.NewActionDefinitionRepository()
 	capRepo := inmemory.NewCapabilityDefinitionRepository()
 	pluginRepo := inmemory.NewPluginContributionRepository()
@@ -26,6 +29,8 @@ func main() {
 	executionService := domain.NewActionExecutionService(
 		actionRepo, resolutionService, validator, actionExecReg, capExecReg,
 	)
+	executionService.SetLogger(logger)
+	executionService.SetDefaultBudget(cfg.DefaultBudget)
 
 	registerUC := &application.RegisterPluginContributionUseCase{
 		CompositionService: compositionService,
@@ -38,9 +43,8 @@ func main() {
 
 	srv := api.NewServer(executeUC, registerUC, actionRepo, capRepo, sessionRepo)
 
-	addr := ":8080"
-	fmt.Println("axi-go server listening on", addr) //nolint:errcheck
-	if err := srv.Run(addr); err != nil {
+	fmt.Println("axi-go server listening on", cfg.Addr)
+	if err := srv.RunWithConfig(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "server error:", err)
 		os.Exit(1)
 	}

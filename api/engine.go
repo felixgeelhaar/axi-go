@@ -33,8 +33,8 @@ func (c *Context) JSON(code int, obj any) {
 	c.status = code
 	c.written = true
 	if err := json.NewEncoder(c.Writer).Encode(obj); err != nil {
-		// Header already sent; log to stderr as last resort.
-		fmt.Fprintf(os.Stderr, "api: failed to encode JSON response: %v\n", err)
+		// Header already sent; best-effort stderr log.
+		_, _ = fmt.Fprintf(os.Stderr, "api: failed to encode JSON response: %v\n", err)
 	}
 }
 

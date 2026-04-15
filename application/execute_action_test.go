@@ -110,7 +110,7 @@ func TestFullExecutionFlow_Success(t *testing.T) {
 
 			msg := "Hello, " + upper.(string) + "!"
 			return domain.ExecutionResult{
-					Data:    msg,
+					Data:    map[string]any{"message": msg},
 					Summary: "Greeted " + name,
 				}, []domain.EvidenceRecord{
 					{Kind: "invocation", Source: "greet", Value: name},
@@ -145,8 +145,12 @@ func TestFullExecutionFlow_Success(t *testing.T) {
 	if output.Result == nil {
 		t.Fatal("expected result")
 	}
-	if output.Result.Data != "Hello, WORLD!" {
-		t.Errorf("expected 'Hello, WORLD!', got %v", output.Result.Data)
+	resultMap, ok := output.Result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", output.Result.Data)
+	}
+	if resultMap["message"] != "Hello, WORLD!" {
+		t.Errorf("expected 'Hello, WORLD!', got %v", resultMap["message"])
 	}
 	if len(output.Evidence) != 1 {
 		t.Errorf("expected 1 evidence record, got %d", len(output.Evidence))
