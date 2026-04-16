@@ -83,7 +83,7 @@ func (e *greetExecutor) Execute(_ context.Context, input any, caps domain.Capabi
 }
 
 func main() {
-	// 1. Build the kernel with a fluent, Gin-style API.
+	// 1. Build the kernel with a fluent, chainable builder API.
 	kernel := axi.New().
 		WithLogger(inmemory.NewStdLogger(inmemory.LevelInfo)).
 		WithBudget(axi.Budget{MaxCapabilityInvocations: 100})

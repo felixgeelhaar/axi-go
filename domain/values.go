@@ -102,12 +102,6 @@ const (
 	EffectWriteLocal    EffectLevel = "write-local"
 	EffectReadExternal  EffectLevel = "read-external"
 	EffectWriteExternal EffectLevel = "write-external"
-
-	// Legacy aliases — these are Go constants that resolve to the new values.
-	// Note: the string values "local" and "external" are NOT valid in JSON/API.
-	// Use "write-local" and "write-external" instead.
-	EffectLocal    = EffectWriteLocal
-	EffectExternal = EffectWriteExternal
 )
 
 // ValidEffectLevel returns true if the given level is a known effect level.
@@ -140,9 +134,6 @@ type IdempotencyProfile struct {
 }
 
 // Execution value objects.
-
-// InvocationInput represents the input to an action execution.
-type InvocationInput = any
 
 type ExecutionResult struct {
 	Data        any

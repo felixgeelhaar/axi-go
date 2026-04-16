@@ -88,7 +88,7 @@ func (s *ActionExecutionService) SetDefaultBudget(budget ExecutionBudget) {
 }
 
 // Execute runs the execution flow on a session.
-// For actions with EffectExternal, the session pauses at AwaitingApproval
+// For actions with write-external effects, the session pauses at AwaitingApproval
 // and must be resumed via Resume() after approval. Otherwise runs to completion.
 func (s *ActionExecutionService) Execute(ctx context.Context, session *ExecutionSession) error {
 	s.logger.Info("executing action",
