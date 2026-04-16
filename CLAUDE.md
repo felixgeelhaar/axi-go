@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## What axi-go Is
+
+A domain-driven execution kernel for semantic actions. **It is a library you embed in Go programs, not a service.** Actions express intent, capabilities express mechanics, plugins contribute both, and execution sessions track the full lifecycle with evidence and safety controls.
+
+**axi-go has no HTTP API, no daemon, no protocol assumptions.** Delivery is the caller's choice — build an HTTP, gRPC, CLI, or MCP adapter on top of the kernel.
+
 ## Build & Test Commands
 
 ```bash
@@ -9,8 +15,7 @@ make check          # Full suite: fmt + lint + test + security
 make test           # Run tests
 make lint           # golangci-lint
 make fmt            # Auto-fix formatting
-make cover          # Tests with coverage + coverctl record
-make security       # nox security scan
+make cover          # Tests with coverage
 make install-hooks  # Install pre-commit git hook
 go test ./... -race # Race detector (important for async execution)
 ```
@@ -22,29 +27,51 @@ Zero external dependencies — standard library only.
 ## Architecture
 
 ```
-domain/          Zero deps. Aggregates, services, port interfaces, snapshot types.
-application/     Use cases: RegisterPlugin, ExecuteAction (sync + async), Approve/Reject.
-api/             Gin-like HTTP API on stdlib net/http. Config, middleware, auth.
-inmemory/        Thread-safe in-memory adapters. StdLogger.
+axi (root)       Fluent SDK facade — what consumers import.
+domain/          Aggregates, services, port interfaces. Zero deps.
+application/     Use cases that orchestrate the domain.
+inmemory/        In-memory adapters + StdLogger.
 jsonstore/       File-based JSON persistence adapter.
-cmd/server/      Entrypoint with config, logging, graceful shutdown.
-example/         Working example with sample greeter plugin.
+example/         Programmatic usage example.
 ```
 
-Dependency direction: `domain` <- `application` <- `api`/`inmemory`/`jsonstore` <- `cmd/server`
+Dependency direction: `domain` ← `application` ← `inmemory`/`jsonstore` ← `axi` (root) ← consumer code.
+
+### Root `axi` package
+
+Fluent SDK facade. The ONLY package consumers typically import.
+
+```go
+kernel := axi.New().
+    WithLogger(logger).
+    WithBudget(axi.Budget{MaxCapabilityInvocations: 100}).
+    WithRateLimiter(limiter)
+
+kernel.RegisterPlugin(plugin)
+kernel.RegisterActionExecutor("exec.greet", executor)
+kernel.RegisterBundle(bundle)  // atomic: metadata + executors
+
+result, err := kernel.Execute(ctx, axi.Invocation{Action: "x", Input: ...})
+result, err := kernel.ExecuteAsync(ctx, inv)
+result, err := kernel.Approve(ctx, sessionID)
+result, err := kernel.Reject(sessionID, reason)
+
+actions := kernel.ListActions()
+session, _ := kernel.GetSession(sessionID)
+```
 
 ### `domain/` — Core (zero deps)
 
 **Aggregates** (unexported fields, thread-safe via sync.RWMutex):
 - **ActionDefinition** — semantic action with typed contracts, requirements, effect/idempotency profiles
-- **CapabilityDefinition** — executable capability with contracts
+- **CapabilityDefinition** — executable capability
 - **PluginContribution** — groups actions + capabilities
-- **ExecutionSession** — state machine: `Pending -> Validated -> Resolved -> [AwaitingApproval] -> Running -> Succeeded|Failed|Rejected`
+- **ExecutionSession** — state machine: `Pending → Validated → Resolved → [AwaitingApproval] → Running → Succeeded|Failed|Rejected`
 
 **Domain services:**
 - **CompositionService** — register/deregister plugins with mutex serialization, rollback on failure
 - **CapabilityResolutionService** — resolves requirements
-- **ActionExecutionService** — validate -> resolve -> [approve] -> execute with budget/rate-limit enforcement, output validation
+- **ActionExecutionService** — validate → resolve → [approve] → execute with budget/rate-limit enforcement, output validation
 
 **Key types:**
 - **Plugin** / **LifecyclePlugin** — contribute actions/capabilities, optional Init(config)/Close()
@@ -55,42 +82,45 @@ Dependency direction: `domain` <- `application` <- `api`/`inmemory`/`jsonstore` 
 - **RateLimiter** — port interface for action-level rate limiting
 - **Pipeline** — sequential capability chaining
 - **ComposableCapabilityExecutor** — capabilities that invoke other capabilities
-- **Logger** — structured logging port (Debug/Info/Warn/Error with fields)
+- **Logger** — structured logging port
 - **Typed errors** — ErrNotFound, ErrConflict, ErrValidation
 - **Snapshot types** — serializable forms for persistence adapters
 
-### `api/` — HTTP API
+**Port interfaces** (all in domain, all implemented by adapters):
+- Repositories: `ActionRepository`, `CapabilityRepository`, `PluginRepository`, `SessionRepository`
+- Executors: `ActionExecutor`, `CapabilityInvoker`, `CapabilityExecutor`, `ComposableCapabilityExecutor`
+- Lookups: `ActionExecutorLookup`, `CapabilityExecutorLookup`
+- Validation: `ContractValidator`
+- Safety: `RateLimiter`
 
-Gin-like router on Go 1.22+ `http.ServeMux`. Graceful shutdown, configurable timeouts.
+### `inmemory/` — Default adapters
 
-Routes: `/health`, `/api/v1/actions`, `/api/v1/actions/{name}`, `/api/v1/actions/execute` (sync/async), `/api/v1/sessions/{id}`, `/api/v1/sessions/{id}/approve`, `/api/v1/sessions/{id}/reject`, `/api/v1/capabilities`, `/api/v1/plugins`, `DELETE /api/v1/plugins/{id}`
+Thread-safe repos, executor registries, validator, ID generator, StdLogger. Used by `axi.New()` as defaults.
 
-Features: error_code in responses, list envelopes, ConfigFromEnv (AXI_* env vars), AuthMiddleware + BearerTokenAuth.
+### `jsonstore/` — File persistence
 
-### `jsonstore/` — File-based persistence
-
-JSON file adapter implementing all repository interfaces. Stores data as `{dir}/actions/*.json`, `capabilities/*.json`, etc. Uses domain snapshot types for serialization.
-
-### `inmemory/` — In-memory adapters + StdLogger
-
-Thread-safe repos, executor registries, validator, ID generator, structured logger.
+JSON file adapter implementing all repository interfaces. Uses domain snapshot types for serialization.
 
 ## Key Design Rules
 
-- **Domain has zero imports** outside stdlib
-- **ExecutionSession is thread-safe** (sync.RWMutex) for async execution
-- **CompositionService is serialized** (sync.Mutex) preventing TOCTOU races
-- **write-external actions require approval** before execution
-- **Output contracts are validated** — results checked before Succeeded
-- **Budget enforced per invocation** — max invocations and max duration
-- **Context cancellation checked** between execution phases
+- **No HTTP API, no daemon** — axi-go is a library only. Delivery adapters live outside this repo.
+- **Domain has zero imports** outside stdlib.
+- **Aggregates enforce invariants** via constructors, unexported fields, defensive slice copies.
+- **ExecutionSession is thread-safe** (sync.RWMutex) for async execution.
+- **CompositionService is serialized** (sync.Mutex) preventing TOCTOU races.
+- **write-external actions require approval** before execution.
+- **Output contracts are validated** before marking Succeeded.
+- **Action failure is a valid outcome**, not a Go error.
+- **Names must match** `^[a-zA-Z][a-zA-Z0-9._-]*$`.
 
-## Configuration
+## Execution Flow
 
-Environment variables (all optional, sensible defaults):
-- `AXI_ADDR` — listen address (default `:8080`)
-- `AXI_READ_TIMEOUT_SECS` — HTTP read timeout (default 15)
-- `AXI_WRITE_TIMEOUT_SECS` — HTTP write timeout (default 30)
-- `AXI_IDLE_TIMEOUT_SECS` — HTTP idle timeout (default 60)
-- `AXI_MAX_DURATION_SECS` — max execution duration (default 300)
-- `AXI_MAX_INVOCATIONS` — max capability invocations per session (default 100)
+`ActionExecutionService.Execute`:
+1. Rate limit check
+2. Load ActionDefinition → validate input → `Validated`
+3. Resolve RequirementSet → `Resolved`
+4. If write-external: pause at `AwaitingApproval` (requires Approve/Reject)
+5. Build budget-enforced `CapabilityInvoker` → execute → `Running`
+6. Collect evidence → validate output → `Succeeded` (with result) or `Failed` (with reason)
+
+Async mode (`ExecuteAsync`): returns immediately with session in `Pending`, executes in background goroutine with panic recovery. Poll via `kernel.GetSession(id)`.

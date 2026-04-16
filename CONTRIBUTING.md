@@ -5,7 +5,8 @@ Thanks for considering a contribution. axi-go aims to stay small, principled, an
 ## Core principles
 
 1. **Zero external dependencies.** The `domain/` package must not import anything outside the standard library. Adapters in `inmemory/`, `jsonstore/` etc. also use stdlib only.
-2. **DDD boundaries.** Respect the dependency direction: `domain` ← `application` ← `api`/`inmemory`/`jsonstore` ← `cmd/server`. The domain owns its port interfaces.
+2. **DDD boundaries.** Respect the dependency direction: `domain` ← `application` ← `inmemory`/`jsonstore` ← `axi` (root facade) ← consumer code. The domain owns its port interfaces.
+3. **No delivery mechanisms in this repo.** axi-go is a library, not a service. No HTTP, gRPC, CLI, or MCP code belongs here. Build adapters in your own repo.
 3. **Aggregates enforce invariants.** Unexported fields, constructor validation, defensive copies, state-machine transitions.
 4. **Action failure is a valid outcome**, not a Go error. Infrastructure errors are `error`; domain failures transition the session to `Failed`.
 
@@ -44,7 +45,7 @@ Atomic commits — one logical change per commit. The pre-commit hook runs fmt, 
 ## Testing philosophy
 
 - Domain tests use in-package fakes (no `inmemory/` dependency)
-- API tests use `inmemory/` adapters via `httptest`
+- `axi` package tests drive the full kernel programmatically
 - Integration tests live in the package they exercise, not a separate `test/` dir
 - Table-driven tests where there are many small cases
 - Concurrent/async code gets a dedicated race-detector test

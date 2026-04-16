@@ -1,0 +1,227 @@
+// Package axi is the entry point for axi-go — a domain-driven execution kernel
+// for semantic actions. It provides a fluent, descriptive SDK for registering
+// plugins and executing actions with built-in safety controls.
+//
+// Example:
+//
+//	kernel := axi.New().
+//	    WithLogger(logger).
+//	    WithBudget(axi.Budget{MaxInvocations: 100})
+//
+//	if err := kernel.RegisterPlugin(myPlugin); err != nil {
+//	    return err
+//	}
+//
+//	result, err := kernel.Execute(ctx, axi.Invocation{
+//	    Action: "greet",
+//	    Input:  map[string]any{"name": "world"},
+//	})
+//
+// axi-go is a library you embed, not a service you run. There is no HTTP API.
+// Delivery mechanisms (HTTP, gRPC, CLI, MCP) are the caller's choice; build
+// your own adapter around this kernel.
+package axi
+
+import (
+	"context"
+	"time"
+
+	"github.com/felixgeelhaar/axi-go/application"
+	"github.com/felixgeelhaar/axi-go/domain"
+	"github.com/felixgeelhaar/axi-go/inmemory"
+)
+
+// Kernel is the fluent entry point for axi-go. Build it with New(), configure
+// it with With* methods, register plugins, then Execute actions.
+//
+// A Kernel is NOT safe to configure concurrently. Call With* before the first
+// Execute. Execute itself is safe for concurrent use.
+type Kernel struct {
+	actionRepo    *inmemory.ActionDefinitionRepository
+	capRepo       *inmemory.CapabilityDefinitionRepository
+	pluginRepo    *inmemory.PluginContributionRepository
+	sessionRepo   *inmemory.ExecutionSessionRepository
+	actionExecReg *inmemory.ActionExecutorRegistry
+	capExecReg    *inmemory.CapabilityExecutorRegistry
+	validator     domain.ContractValidator
+	idGen         application.IDGenerator
+
+	composition *domain.CompositionService
+	resolution  *domain.CapabilityResolutionService
+	execution   *domain.ActionExecutionService
+
+	register *application.RegisterPluginContributionUseCase
+	execute  *application.ExecuteActionUseCase
+}
+
+// Budget is an alias for domain.ExecutionBudget for ergonomic SDK usage.
+type Budget = domain.ExecutionBudget
+
+// Invocation is the input to Execute — an action name plus its input data.
+type Invocation struct {
+	Action string
+	Input  map[string]any
+}
+
+// Result is the output of Execute — session state, result data, evidence.
+type Result = application.ExecuteActionOutput
+
+// New creates a Kernel with default in-memory adapters.
+// Further configuration is done via chainable With* methods.
+func New() *Kernel {
+	k := &Kernel{
+		actionRepo:    inmemory.NewActionDefinitionRepository(),
+		capRepo:       inmemory.NewCapabilityDefinitionRepository(),
+		pluginRepo:    inmemory.NewPluginContributionRepository(),
+		sessionRepo:   inmemory.NewExecutionSessionRepository(),
+		actionExecReg: inmemory.NewActionExecutorRegistry(),
+		capExecReg:    inmemory.NewCapabilityExecutorRegistry(),
+		validator:     inmemory.NewContractValidator(),
+		idGen:         inmemory.NewSequentialIDGenerator(),
+	}
+	k.wire()
+	return k
+}
+
+// wire builds the domain services and use cases from the current adapters.
+func (k *Kernel) wire() {
+	k.composition = domain.NewCompositionService(k.actionRepo, k.capRepo, k.pluginRepo)
+	k.resolution = domain.NewCapabilityResolutionService(k.capRepo)
+	k.execution = domain.NewActionExecutionService(
+		k.actionRepo, k.resolution, k.validator, k.actionExecReg, k.capExecReg,
+	)
+
+	k.register = &application.RegisterPluginContributionUseCase{
+		CompositionService: k.composition,
+	}
+	k.execute = &application.ExecuteActionUseCase{
+		SessionRepo:      k.sessionRepo,
+		ExecutionService: k.execution,
+		IDGen:            k.idGen,
+	}
+}
+
+// WithLogger sets a structured logger for the kernel. Returns the kernel for chaining.
+func (k *Kernel) WithLogger(logger domain.Logger) *Kernel {
+	k.execution.SetLogger(logger)
+	return k
+}
+
+// WithBudget sets the default execution budget (max duration, max invocations).
+// Returns the kernel for chaining.
+func (k *Kernel) WithBudget(budget Budget) *Kernel {
+	k.execution.SetDefaultBudget(budget)
+	return k
+}
+
+// WithRateLimiter sets a rate limiter checked before each execution.
+// Returns the kernel for chaining.
+func (k *Kernel) WithRateLimiter(rl domain.RateLimiter) *Kernel {
+	k.execution.SetRateLimiter(rl)
+	return k
+}
+
+// WithTimeout configures a default execution timeout via the budget's MaxDuration.
+// Returns the kernel for chaining.
+func (k *Kernel) WithTimeout(d time.Duration) *Kernel {
+	k.execution.SetDefaultBudget(Budget{MaxDuration: d})
+	return k
+}
+
+// WithIDGenerator overrides the default session ID generator.
+func (k *Kernel) WithIDGenerator(gen application.IDGenerator) *Kernel {
+	k.idGen = gen
+	k.execute.IDGen = gen
+	return k
+}
+
+// RegisterPlugin registers a Plugin by calling Contribute() and activating it.
+// If the plugin implements domain.LifecyclePlugin, Init() is called first.
+func (k *Kernel) RegisterPlugin(plugin domain.Plugin) error {
+	return k.composition.RegisterPlugin(plugin)
+}
+
+// RegisterPluginWithConfig registers a LifecyclePlugin with configuration.
+func (k *Kernel) RegisterPluginWithConfig(plugin domain.Plugin, config domain.PluginConfig) error {
+	return k.composition.RegisterPluginWithConfig(plugin, config)
+}
+
+// RegisterBundle atomically registers a plugin contribution along with its
+// executor implementations. Preferred over RegisterPlugin when you want to
+// validate executor refs match implementations before registration.
+func (k *Kernel) RegisterBundle(bundle *domain.PluginBundle) error {
+	return k.composition.RegisterBundle(bundle, k.actionExecReg, k.capExecReg)
+}
+
+// DeregisterPlugin removes a plugin and all its contributed actions/capabilities.
+func (k *Kernel) DeregisterPlugin(id string) error {
+	return k.composition.DeregisterPlugin(domain.PluginID(id))
+}
+
+// RegisterActionExecutor wires an executor ref to an implementation.
+// Use this when registering actions without a PluginBundle.
+func (k *Kernel) RegisterActionExecutor(ref string, executor domain.ActionExecutor) {
+	k.actionExecReg.Register(domain.ActionExecutorRef(ref), executor)
+}
+
+// RegisterCapabilityExecutor wires a capability executor ref to an implementation.
+func (k *Kernel) RegisterCapabilityExecutor(ref string, executor domain.CapabilityExecutor) {
+	k.capExecReg.Register(domain.CapabilityExecutorRef(ref), executor)
+}
+
+// Execute runs an action synchronously and returns the full result.
+// If the action has effect_level "write-external", execution pauses at
+// AwaitingApproval and the caller must Approve() or Reject() before completion.
+func (k *Kernel) Execute(ctx context.Context, inv Invocation) (*Result, error) {
+	actionName, err := domain.NewActionName(inv.Action)
+	if err != nil {
+		return nil, err
+	}
+	return k.execute.Execute(ctx, application.ExecuteActionInput{
+		ActionName: actionName,
+		Input:      inv.Input,
+	})
+}
+
+// ExecuteAsync submits an action for background execution and returns immediately.
+// Poll via GetSession(sessionID) to check status.
+func (k *Kernel) ExecuteAsync(ctx context.Context, inv Invocation) (*Result, error) {
+	actionName, err := domain.NewActionName(inv.Action)
+	if err != nil {
+		return nil, err
+	}
+	return k.execute.ExecuteAsync(ctx, application.ExecuteActionInput{
+		ActionName: actionName,
+		Input:      inv.Input,
+	})
+}
+
+// Approve approves a session in AwaitingApproval state and resumes execution.
+func (k *Kernel) Approve(ctx context.Context, sessionID string) (*Result, error) {
+	return k.execute.ApproveSession(ctx, domain.ExecutionSessionID(sessionID))
+}
+
+// Reject rejects a session in AwaitingApproval state with a reason.
+func (k *Kernel) Reject(sessionID, reason string) (*Result, error) {
+	return k.execute.RejectSession(domain.ExecutionSessionID(sessionID), reason)
+}
+
+// GetSession returns the current state of an execution session by ID.
+func (k *Kernel) GetSession(sessionID string) (*domain.ExecutionSession, error) {
+	return k.sessionRepo.Get(domain.ExecutionSessionID(sessionID))
+}
+
+// ListActions returns all registered actions.
+func (k *Kernel) ListActions() []*domain.ActionDefinition {
+	return k.actionRepo.List()
+}
+
+// ListCapabilities returns all registered capabilities.
+func (k *Kernel) ListCapabilities() []*domain.CapabilityDefinition {
+	return k.capRepo.List()
+}
+
+// GetAction returns an action definition by name.
+func (k *Kernel) GetAction(name string) (*domain.ActionDefinition, error) {
+	return k.actionRepo.GetByName(domain.ActionName(name))
+}
