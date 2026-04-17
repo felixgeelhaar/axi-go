@@ -146,9 +146,10 @@ session, _ := kernel.GetSession(sessionID)
 fmt.Println(session.Status(), session.Evidence())
 ```
 
-## The SDK
+## Configuring a kernel
 
-The root `axi` package provides a fluent, descriptive API:
+The fluent builder on `axi.New()` returns a configured `*Kernel`. Chain
+the `With*` methods as needed:
 
 ```go
 kernel := axi.New().
@@ -156,33 +157,44 @@ kernel := axi.New().
     WithBudget(axi.Budget{MaxDuration: 5*time.Minute, MaxCapabilityInvocations: 100}).
     WithRateLimiter(myRateLimiter).
     WithIDGenerator(uuidGen)
-
-// Register
-kernel.RegisterPlugin(plugin)
-kernel.RegisterPluginWithConfig(plugin, map[string]any{"api_key": "..."})
-kernel.RegisterBundle(bundle)  // atomic: metadata + executors
-kernel.DeregisterPlugin("my.plugin")
-
-// Execute
-result, _ := kernel.Execute(ctx, axi.Invocation{Action: "x", Input: ...})
-result, _ := kernel.ExecuteAsync(ctx, axi.Invocation{Action: "x", Input: ...})
-
-// Approval flow
-result, _ := kernel.Approve(ctx, sessionID)
-result, _ := kernel.Reject(ctx, sessionID, domain.ApprovalDecision{Principal: "reviewer@example.com", Rationale: "too risky"})
-
-// Introspection
-actions := kernel.ListActions()
-caps    := kernel.ListCapabilities()
-session, _ := kernel.GetSession(sessionID)
-
-// Or with pre-computed aggregates (axi.md #4):
-r := kernel.ListActionsResult()       // r.Items, r.TotalCount, r.IsEmpty()
-s := kernel.ListActionSummaries()     // minimal-schema view (axi.md #2)
-
-// Help for an action or capability (axi.md #10)
-text, _ := kernel.Help("greet")
 ```
+
+Register plugins and executors before the first `Execute`:
+
+```go
+kernel.RegisterPlugin(plugin)
+kernel.RegisterBundle(bundle)  // atomic: metadata + executors together
+```
+
+Drive actions from your delivery layer:
+
+```go
+result, _ := kernel.Execute(ctx, axi.Invocation{Action: "greet", Input: inp})
+
+// For write-external actions that paused at awaiting_approval:
+result, _ := kernel.Approve(ctx, sessionID, decision)
+result, _ := kernel.Reject(ctx, sessionID, decision)
+```
+
+## Kernel reference (quick)
+
+| Method | Purpose |
+|---|---|
+| `New()` | Build a kernel with default in-memory adapters |
+| `WithLogger`, `WithBudget`, `WithRateLimiter`, `WithIDGenerator`, `WithTimeout` | Fluent configuration |
+| `RegisterPlugin`, `RegisterPluginWithConfig`, `RegisterBundle` | Add actions + capabilities |
+| `RegisterActionExecutor`, `RegisterCapabilityExecutor` | Bind refs to implementations |
+| `DeregisterPlugin` | Remove a plugin and everything it contributed |
+| `Execute`, `ExecuteAsync` | Invoke an action synchronously or in the background |
+| `Approve`, `Reject` | Resolve a session awaiting approval |
+| `GetSession` | Look up a session by id |
+| `ListActions`, `ListCapabilities` | Full aggregates |
+| `ListActionsResult`, `ListCapabilitiesResult` | Aggregates wrapped with `TotalCount` + `IsEmpty()` |
+| `ListActionSummaries`, `ListCapabilitySummaries` | Minimal-schema projections (axi.md #2) |
+| `GetAction`, `Help` | Introspect one action or any name (axi.md #10) |
+
+See the godoc on [pkg.go.dev](https://pkg.go.dev/github.com/felixgeelhaar/axi-go)
+for full signatures and runnable examples.
 
 ## Safety & Control
 
