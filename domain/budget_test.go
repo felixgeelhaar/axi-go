@@ -89,6 +89,66 @@ func TestBudgetEnforcer_MaxDuration(t *testing.T) {
 	}
 }
 
+func TestBudgetEnforcer_MaxTokens_Exceeded(t *testing.T) {
+	execSvc, actionRepo, _, actionExecs, _ := setupExecution(t)
+	execSvc.SetDefaultBudget(domain.ExecutionBudget{MaxTokens: 100})
+
+	action, _ := domain.NewActionDefinition("token-test", "Tokens",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectNone}, domain.IdempotencyProfile{},
+	)
+	_ = action.BindExecutor("exec.tokens")
+	_ = actionRepo.Save(action)
+
+	actionExecs.executors["exec.tokens"] = &fakeActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Data: "ok"},
+				[]domain.EvidenceRecord{
+					{Kind: "llm", Source: "model-a", TokensUsed: 60},
+					{Kind: "llm", Source: "model-b", TokensUsed: 50}, // total 110 > 100
+				}, nil
+		},
+	}
+
+	session, _ := domain.NewExecutionSession("s1", "token-test", nil)
+	if err := execSvc.Execute(context.Background(), session); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if session.Status() != domain.StatusFailed {
+		t.Fatalf("expected Failed (budget exceeded), got %s", session.Status())
+	}
+	if f := session.Failure(); f == nil || f.Code != "BUDGET_EXCEEDED" {
+		t.Errorf("expected BUDGET_EXCEEDED failure, got %+v", f)
+	}
+}
+
+func TestBudgetEnforcer_MaxTokens_WithinBudget(t *testing.T) {
+	execSvc, actionRepo, _, actionExecs, _ := setupExecution(t)
+	execSvc.SetDefaultBudget(domain.ExecutionBudget{MaxTokens: 100})
+
+	action, _ := domain.NewActionDefinition("token-ok", "Tokens ok",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectNone}, domain.IdempotencyProfile{},
+	)
+	_ = action.BindExecutor("exec.tokens.ok")
+	_ = actionRepo.Save(action)
+
+	actionExecs.executors["exec.tokens.ok"] = &fakeActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Data: "ok"},
+				[]domain.EvidenceRecord{{Kind: "llm", Source: "m", TokensUsed: 40}}, nil
+		},
+	}
+
+	session, _ := domain.NewExecutionSession("s1", "token-ok", nil)
+	if err := execSvc.Execute(context.Background(), session); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if session.Status() != domain.StatusSucceeded {
+		t.Errorf("expected Succeeded, got %s", session.Status())
+	}
+}
+
 func TestBudgetEnforcer_NoBudget(t *testing.T) {
 	// Zero budget means no limit.
 	execSvc, actionRepo, capRepo, actionExecs, capExecs := setupExecution(t)

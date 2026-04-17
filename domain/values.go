@@ -161,10 +161,11 @@ type FailureReason struct {
 }
 
 type EvidenceRecord struct {
-	Kind      string
-	Source    string
-	Value     any
-	Timestamp int64 // Unix milliseconds. Zero means not set.
+	Kind       string
+	Source     string
+	Value      any
+	Timestamp  int64 // Unix milliseconds. Zero means not set.
+	TokensUsed int64 // Tokens consumed by the capability emitting this evidence. Zero means unreported.
 }
 
 // ExecutionStatus represents the state of an execution session.

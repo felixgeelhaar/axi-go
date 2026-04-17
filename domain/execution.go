@@ -204,6 +204,23 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 		return nil
 	}
 
+	// Token budget check — post-hoc, based on reported evidence.
+	if s.defaultBudget.MaxTokens > 0 {
+		var total int64
+		for _, e := range evidence {
+			total += e.TokensUsed
+		}
+		if total > s.defaultBudget.MaxTokens {
+			if failErr := session.Fail(FailureReason{
+				Code:    "BUDGET_EXCEEDED",
+				Message: fmt.Sprintf("token budget %d exceeded: used %d", s.defaultBudget.MaxTokens, total),
+			}); failErr != nil {
+				return failErr
+			}
+			return nil
+		}
+	}
+
 	// Validate output against contract.
 	if !action.OutputContract().IsEmpty() {
 		if err := s.validator.Validate(action.OutputContract(), result.Data); err != nil {

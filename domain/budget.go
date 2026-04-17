@@ -10,6 +10,7 @@ import (
 type ExecutionBudget struct {
 	MaxDuration              time.Duration // Zero means no limit.
 	MaxCapabilityInvocations int           // Zero means no limit.
+	MaxTokens                int64         // Zero means no limit. Summed from EvidenceRecord.TokensUsed after execution.
 }
 
 // budgetEnforcer tracks usage against a budget during execution.

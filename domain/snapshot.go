@@ -70,10 +70,11 @@ type ApprovalDecisionSnapshot struct {
 
 // EvidenceSnapshot is the serializable form of EvidenceRecord.
 type EvidenceSnapshot struct {
-	Kind      string `json:"kind"`
-	Source    string `json:"source"`
-	Value     any    `json:"value"`
-	Timestamp int64  `json:"timestamp,omitempty"`
+	Kind       string `json:"kind"`
+	Source     string `json:"source"`
+	Value      any    `json:"value"`
+	Timestamp  int64  `json:"timestamp,omitempty"`
+	TokensUsed int64  `json:"tokens_used,omitempty"`
 }
 
 // SuggestionSnapshot is the serializable form of Suggestion.
