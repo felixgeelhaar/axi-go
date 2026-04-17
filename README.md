@@ -72,6 +72,11 @@ See [`example/main.go`](example/main.go) for a complete runnable example.
 For an MCP (Model Context Protocol) adapter in ~250 lines with no external
 deps, see [`example/mcp-server/`](example/mcp-server/).
 
+If you want to understand the *why* behind the shape of the library — the
+reasoning that makes actions, capabilities, effect profiles, and evidence
+inevitable once you accept certain premises — read
+[`docs/CONCEPTS.md`](docs/CONCEPTS.md).
+
 ## Core Concepts
 
 ### Actions express *intent*
