@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // PipelineStep defines one step in a capability pipeline.
 type PipelineStep struct {
@@ -16,6 +19,26 @@ type Pipeline struct {
 	Steps []PipelineStep
 }
 
+// PipelineFailure is returned by Pipeline.ExecuteWithInvoker when a step fails
+// mid-sequence. It carries the outputs of steps that succeeded so the caller
+// can inspect partial state — e.g., to resume from the failed step or record
+// what was already committed before the error.
+//
+// Aligned with Issue #9 phase 2: sequential capability chains no longer lose
+// completed work on mid-sequence failure.
+type PipelineFailure struct {
+	FailedStep      int   // zero-based index of the step that errored
+	CompletedOutput []any // outputs of steps [0, FailedStep), post-Transform
+	Cause           error // the underlying error from the failed step
+}
+
+func (e *PipelineFailure) Error() string {
+	return fmt.Sprintf("pipeline failed at step %d (after %d completed): %v",
+		e.FailedStep, len(e.CompletedOutput), e.Cause)
+}
+
+func (e *PipelineFailure) Unwrap() error { return e.Cause }
+
 // NewPipeline creates a Pipeline from a sequence of capability names.
 func NewPipeline(capabilities ...CapabilityName) *Pipeline {
 	steps := make([]PipelineStep, len(capabilities))
@@ -26,16 +49,24 @@ func NewPipeline(capabilities ...CapabilityName) *Pipeline {
 }
 
 // ExecuteWithInvoker runs the pipeline by invoking each step in sequence.
+// On step failure it returns a *PipelineFailure carrying the outputs of the
+// steps that completed successfully.
 func (p *Pipeline) ExecuteWithInvoker(ctx context.Context, input any, invoker CapabilityInvoker) (any, error) {
 	current := input
-	for _, step := range p.Steps {
+	completed := make([]any, 0, len(p.Steps))
+	for i, step := range p.Steps {
 		result, err := invoker.Invoke(step.Capability, current)
 		if err != nil {
-			return nil, err
+			return nil, &PipelineFailure{
+				FailedStep:      i,
+				CompletedOutput: completed,
+				Cause:           err,
+			}
 		}
 		if step.Transform != nil {
 			result = step.Transform(result)
 		}
+		completed = append(completed, result)
 		current = result
 	}
 	return current, nil
