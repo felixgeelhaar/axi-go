@@ -88,7 +88,7 @@ type content struct {
 type echoPlugin struct{}
 
 func (p *echoPlugin) Contribute() (*domain.PluginContribution, error) {
-	action, _ := domain.NewActionDefinition(
+	upper, _ := domain.NewActionDefinition(
 		"echo.upper",
 		"Uppercases the provided text",
 		domain.NewContract([]domain.ContractField{
@@ -101,9 +101,30 @@ func (p *echoPlugin) Contribute() (*domain.PluginContribution, error) {
 		domain.EffectProfile{Level: domain.EffectNone},
 		domain.IdempotencyProfile{IsIdempotent: true},
 	)
-	_ = action.BindExecutor("exec.echo.upper")
+	_ = upper.BindExecutor("exec.echo.upper")
+
+	// notify.send is a write-external action. Calls to it pause the session
+	// at AwaitingApproval — axi-go's headline safety feature. The MCP adapter
+	// surfaces the pause in the tool response so the calling agent knows to
+	// drive the approval side-channel before consuming the result.
+	notify, _ := domain.NewActionDefinition(
+		"notify.send",
+		"Sends an external notification (requires approval)",
+		domain.NewContract([]domain.ContractField{
+			{Name: "to", Type: "string", Description: "Recipient", Required: true, Example: "user@example.com"},
+			{Name: "message", Type: "string", Description: "Message body", Required: true, Example: "hello"},
+		}),
+		domain.NewContract([]domain.ContractField{
+			{Name: "delivered", Type: "boolean", Description: "Whether delivery succeeded", Required: true},
+		}),
+		nil,
+		domain.EffectProfile{Level: domain.EffectWriteExternal},
+		domain.IdempotencyProfile{IsIdempotent: false},
+	)
+	_ = notify.BindExecutor("exec.notify.send")
+
 	return domain.NewPluginContribution("echo.plugin",
-		[]*domain.ActionDefinition{action}, nil)
+		[]*domain.ActionDefinition{upper, notify}, nil)
 }
 
 type upperExecutor struct{}
@@ -117,6 +138,16 @@ func (e *upperExecutor) Execute(_ context.Context, input any, _ domain.Capabilit
 	}, nil, nil
 }
 
+type notifyExecutor struct{}
+
+func (e *notifyExecutor) Execute(_ context.Context, input any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	args, _ := input.(map[string]any)
+	return domain.ExecutionResult{
+		Data:    map[string]any{"delivered": true},
+		Summary: "notified " + fmt.Sprintf("%v", args["to"]),
+	}, nil, nil
+}
+
 // --- Server ---
 
 func main() {
@@ -124,6 +155,7 @@ func main() {
 
 	kernel := axi.New().WithBudget(axi.Budget{MaxCapabilityInvocations: 10})
 	kernel.RegisterActionExecutor("exec.echo.upper", &upperExecutor{})
+	kernel.RegisterActionExecutor("exec.notify.send", &notifyExecutor{})
 	if err := kernel.RegisterPlugin(&echoPlugin{}); err != nil {
 		logger.Fatalf("register: %v", err)
 	}
@@ -257,6 +289,20 @@ func handleCall(kernel *axi.Kernel, params callToolParams) callToolResult {
 	})
 	if err != nil {
 		return callToolResult{IsError: true, Content: []content{{Type: "text", Text: err.Error()}}}
+	}
+
+	// Approval gate (axi.md safety feature): write-external actions pause at
+	// AwaitingApproval. The caller must drive approval through an out-of-band
+	// side channel and then either re-check the session or invoke a dedicated
+	// approval method. We surface the pause clearly so agents don't mistake
+	// it for success.
+	if result.Status == domain.StatusAwaitingApproval {
+		body := fmt.Sprintf("awaiting_approval:\n  session: %s\n  note: caller must drive approval (kernel.Approve) out of band",
+			result.SessionID)
+		return callToolResult{
+			Content: []content{{Type: "text", Text: body}},
+			IsError: false, // a pause is not an error
+		}
 	}
 
 	// Token-efficient output (axi.md #1): render the tool result as TOON.

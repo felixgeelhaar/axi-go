@@ -144,6 +144,38 @@ func TestServe_CallMissingToolName(t *testing.T) {
 	}
 }
 
+func TestServe_CallTriggersApprovalPause(t *testing.T) {
+	kernel := axi.New().WithBudget(axi.Budget{MaxCapabilityInvocations: 10})
+	kernel.RegisterActionExecutor("exec.echo.upper", &upperExecutor{})
+	kernel.RegisterActionExecutor("exec.notify.send", &notifyExecutor{})
+	if err := kernel.RegisterPlugin(&echoPlugin{}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	in := strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"notify.send","arguments":{"to":"alice@example.com","message":"hi"}}}` + "\n")
+	var out bytes.Buffer
+	serve(in, &out, log.New(bytes.NewBuffer(nil), "", 0), kernel)
+
+	var resp rpcResponse
+	if err := json.NewDecoder(&out).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("expected success (pause is not an error), got %+v", resp.Error)
+	}
+	body, _ := json.Marshal(resp.Result)
+	if !strings.Contains(string(body), "awaiting_approval") {
+		t.Errorf("response should signal the pause: %s", body)
+	}
+	if !strings.Contains(string(body), "session:") {
+		t.Errorf("response should carry session id: %s", body)
+	}
+	// IsError must be false — a pause is a legitimate non-error state.
+	if strings.Contains(string(body), `"isError":true`) {
+		t.Errorf("isError should be false on approval pause: %s", body)
+	}
+}
+
 func TestServe_CallTooManyArgumentEntries(t *testing.T) {
 	kernel := axi.New().WithBudget(axi.Budget{MaxCapabilityInvocations: 10})
 	kernel.RegisterActionExecutor("exec.echo.upper", &upperExecutor{})
