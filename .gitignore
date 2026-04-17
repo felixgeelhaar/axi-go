@@ -1,9 +1,11 @@
-# Binaries
+# Binaries — built example programs end up at repo root when run as `go build .`
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+/mcp-server
+/example-bin
 
 # Test binary
 *.test
