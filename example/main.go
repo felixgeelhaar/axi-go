@@ -14,6 +14,7 @@ import (
 	"github.com/felixgeelhaar/axi-go"
 	"github.com/felixgeelhaar/axi-go/domain"
 	"github.com/felixgeelhaar/axi-go/inmemory"
+	"github.com/felixgeelhaar/axi-go/toon"
 )
 
 // --- Sample plugin: "greeter" ---
@@ -77,16 +78,26 @@ func (e *greetExecutor) Execute(_ context.Context, input any, caps domain.Capabi
 			Data:        map[string]any{"message": fmt.Sprintf("Hello, %s!", upper)},
 			Summary:     "Greeted " + name,
 			ContentType: "application/json",
+			// axi.md #9: guide the agent toward sensible follow-ups.
+			Suggestions: []domain.Suggestion{
+				{Action: "greet", Description: "Greet someone else"},
+			},
 		}, []domain.EvidenceRecord{
-			{Kind: "invocation", Source: "greet", Value: map[string]any{"name": name, "upper": upper}},
+			// axi.md #1: capabilities report token usage for budget enforcement.
+			{Kind: "invocation", Source: "greet", Value: map[string]any{"name": name, "upper": upper}, TokensUsed: 12},
 		}, nil
 }
 
 func main() {
-	// 1. Build the kernel with a fluent, chainable builder API.
+	// 1. Build the kernel with a fluent builder.
+	//    Budget covers duration, invocation count, tokens, and idempotency retries.
 	kernel := axi.New().
 		WithLogger(inmemory.NewStdLogger(inmemory.LevelInfo)).
-		WithBudget(axi.Budget{MaxCapabilityInvocations: 100})
+		WithBudget(axi.Budget{
+			MaxCapabilityInvocations: 100,
+			MaxTokens:                1_000,
+			MaxRetries:               2,
+		})
 
 	// 2. Register executors, then the plugin metadata.
 	kernel.RegisterActionExecutor("exec.greet", &greetExecutor{})
@@ -96,15 +107,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 3. Inspect what's registered — agents use this to discover tools.
+	// 3. Discovery via the minimal Summary projection (axi.md #2).
 	fmt.Println("=== Registered actions ===")
-	for _, a := range kernel.ListActions() {
-		fmt.Printf("  - %s: %s\n", a.Name(), a.Description())
-		fmt.Printf("    effect: %s  idempotent: %v\n", a.EffectProfile().Level, a.IdempotencyProfile().IsIdempotent)
+	summaries := kernel.ListActionSummaries()
+	if summaries.IsEmpty() {
+		fmt.Println("  (no actions registered)")
+	}
+	for _, s := range summaries.Items {
+		fmt.Printf("  - %s (%s, idempotent=%t) — %s\n",
+			s.Name, s.Effect, s.Idempotent, s.Description)
+	}
+	fmt.Printf("  total: %d\n\n", summaries.TotalCount)
+
+	// 4. Unified help (axi.md #10).
+	fmt.Println("=== Help for 'greet' ===")
+	if help, err := kernel.Help("greet"); err == nil {
+		fmt.Println(help)
 	}
 	fmt.Println()
 
-	// 4. Execute an action.
+	// 5. Execute the action.
 	fmt.Println("=== Executing 'greet' ===")
 	result, err := kernel.Execute(context.Background(), axi.Invocation{
 		Action: "greet",
@@ -115,18 +137,40 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 5. Inspect the result.
+	// 6. Inspect the result — JSON for comparison, TOON for agent-friendly output.
 	fmt.Printf("Status: %s\n", result.Status)
-	data, _ := json.MarshalIndent(result.Result, "", "  ")
-	fmt.Printf("Result: %s\n", data)
-	fmt.Printf("Evidence: %d record(s)\n", len(result.Evidence))
+	data, _ := json.MarshalIndent(result.Result.Data, "", "  ")
+	fmt.Printf("Result (JSON):\n%s\n", data)
+
+	if toonOut, err := toon.Encode(result.Result.Data); err == nil {
+		fmt.Printf("Result (TOON):\n%s\n", toonOut)
+	}
+
+	fmt.Printf("Evidence: %d record(s), %d tokens reported\n",
+		len(result.Evidence), sumTokens(result.Evidence))
 	for _, ev := range result.Evidence {
-		fmt.Printf("  - [%s] from %s: %v\n", ev.Kind, ev.Source, ev.Value)
+		fmt.Printf("  - [%s] from %s: %v (tokens=%d)\n", ev.Kind, ev.Source, ev.Value, ev.TokensUsed)
+	}
+
+	// 7. Suggestions let the agent pick a sensible next move (axi.md #9).
+	if len(result.Suggestions) > 0 {
+		fmt.Println("Suggested next actions:")
+		for _, s := range result.Suggestions {
+			fmt.Printf("  -> %s — %s\n", s.Action, s.Description)
+		}
 	}
 	fmt.Println()
 
-	// 6. Poll the session.
+	// 8. Poll the session.
 	fmt.Println("=== Session state ===")
 	session, _ := kernel.GetSession(string(result.SessionID))
 	fmt.Printf("Session %s is %s\n", session.ID(), session.Status())
+}
+
+func sumTokens(evidence []domain.EvidenceRecord) int64 {
+	var total int64
+	for _, e := range evidence {
+		total += e.TokensUsed
+	}
+	return total
 }
