@@ -34,6 +34,7 @@ type ExecuteActionOutput struct {
 	Failure          *domain.FailureReason
 	Evidence         []domain.EvidenceRecord
 	ApprovalDecision *domain.ApprovalDecision
+	Suggestions      []domain.Suggestion
 }
 
 // Execute runs an action. If the action requires approval (external effects),
@@ -136,7 +137,7 @@ func (uc *ExecuteActionUseCase) RejectSession(id domain.ExecutionSessionID, reas
 }
 
 func outputFromSession(session *domain.ExecutionSession) *ExecuteActionOutput {
-	return &ExecuteActionOutput{
+	out := &ExecuteActionOutput{
 		SessionID:        session.ID(),
 		Status:           session.Status(),
 		RequiresApproval: session.RequiresApproval(),
@@ -145,4 +146,8 @@ func outputFromSession(session *domain.ExecutionSession) *ExecuteActionOutput {
 		Evidence:         session.Evidence(),
 		ApprovalDecision: session.ApprovalDecision(),
 	}
+	if out.Result != nil {
+		out.Suggestions = out.Result.Suggestions
+	}
+	return out
 }

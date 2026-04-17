@@ -76,11 +76,18 @@ type EvidenceSnapshot struct {
 	Timestamp int64  `json:"timestamp,omitempty"`
 }
 
+// SuggestionSnapshot is the serializable form of Suggestion.
+type SuggestionSnapshot struct {
+	Action      string `json:"action"`
+	Description string `json:"description"`
+}
+
 // ResultSnapshot is the serializable form of ExecutionResult.
 type ResultSnapshot struct {
-	Data        any    `json:"data"`
-	Summary     string `json:"summary"`
-	ContentType string `json:"content_type,omitempty"`
+	Data        any                  `json:"data"`
+	Summary     string               `json:"summary"`
+	ContentType string               `json:"content_type,omitempty"`
+	Suggestions []SuggestionSnapshot `json:"suggestions,omitempty"`
 }
 
 // FailureSnapshot is the serializable form of FailureReason.
@@ -229,7 +236,11 @@ func SessionFromSnapshot(s SessionSnapshot) (*ExecutionSession, error) {
 		evidence:             evidence,
 	}
 	if s.Result != nil {
-		session.result = &ExecutionResult{Data: s.Result.Data, Summary: s.Result.Summary, ContentType: s.Result.ContentType}
+		var suggestions []Suggestion
+		for _, sg := range s.Result.Suggestions {
+			suggestions = append(suggestions, Suggestion(sg))
+		}
+		session.result = &ExecutionResult{Data: s.Result.Data, Summary: s.Result.Summary, ContentType: s.Result.ContentType, Suggestions: suggestions}
 	}
 	if s.Failure != nil {
 		session.failure = &FailureReason{Code: s.Failure.Code, Message: s.Failure.Message}
@@ -263,7 +274,11 @@ func (s *ExecutionSession) ToSnapshot() SessionSnapshot {
 		Evidence:             evidence,
 	}
 	if s.result != nil {
-		snap.Result = &ResultSnapshot{Data: s.result.Data, Summary: s.result.Summary, ContentType: s.result.ContentType}
+		var suggestions []SuggestionSnapshot
+		for _, sg := range s.result.Suggestions {
+			suggestions = append(suggestions, SuggestionSnapshot(sg))
+		}
+		snap.Result = &ResultSnapshot{Data: s.result.Data, Summary: s.result.Summary, ContentType: s.result.ContentType, Suggestions: suggestions}
 	}
 	if s.failure != nil {
 		snap.Failure = &FailureSnapshot{Code: s.failure.Code, Message: s.failure.Message}

@@ -245,3 +245,67 @@ func (e *greetDocExecutor) Execute(_ context.Context, input any, _ domain.Capabi
 	m := input.(map[string]any)
 	return domain.ExecutionResult{Data: map[string]any{"message": "Hello, " + m["name"].(string)}}, nil, nil
 }
+
+// --- Suggestions tests ---
+
+type suggestingExecutor struct{}
+
+func (e *suggestingExecutor) Execute(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	return domain.ExecutionResult{
+		Data:    map[string]any{"created": true},
+		Summary: "created resource",
+		Suggestions: []domain.Suggestion{
+			{Action: "resource.get", Description: "Retrieve the created resource"},
+			{Action: "resource.list", Description: "List all resources"},
+		},
+	}, nil, nil
+}
+
+type suggestingPlugin struct{}
+
+func (p *suggestingPlugin) Contribute() (*domain.PluginContribution, error) {
+	action, _ := domain.NewActionDefinition(
+		"resource.create", "Creates a resource",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectNone},
+		domain.IdempotencyProfile{IsIdempotent: false},
+	)
+	_ = action.BindExecutor("exec.resource.create")
+	return domain.NewPluginContribution("suggest.plugin",
+		[]*domain.ActionDefinition{action}, nil)
+}
+
+func TestKernel_ExecutionSuggestions(t *testing.T) {
+	kernel := axi.New()
+	kernel.RegisterActionExecutor("exec.resource.create", &suggestingExecutor{})
+
+	if err := kernel.RegisterPlugin(&suggestingPlugin{}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	result, err := kernel.Execute(context.Background(), axi.Invocation{
+		Action: "resource.create",
+		Input:  map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.Status != domain.StatusSucceeded {
+		t.Fatalf("expected succeeded, got %s", result.Status)
+	}
+	if result.Result == nil {
+		t.Fatal("expected result")
+	}
+	if len(result.Result.Suggestions) != 2 {
+		t.Fatalf("expected 2 suggestions, got %d", len(result.Result.Suggestions))
+	}
+	if result.Result.Suggestions[0].Action != "resource.get" {
+		t.Errorf("expected first suggestion action 'resource.get', got %q", result.Result.Suggestions[0].Action)
+	}
+	if result.Result.Suggestions[0].Description != "Retrieve the created resource" {
+		t.Errorf("unexpected first suggestion description: %s", result.Result.Suggestions[0].Description)
+	}
+	if result.Result.Suggestions[1].Action != "resource.list" {
+		t.Errorf("expected second suggestion action 'resource.list', got %q", result.Result.Suggestions[1].Action)
+	}
+}

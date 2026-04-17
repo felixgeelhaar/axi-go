@@ -141,10 +141,18 @@ type ApprovalDecision struct {
 	Rationale string // why — free text
 }
 
+// Suggestion guides agents toward a logical next action after execution.
+// Aligned with axi.md principle #9: contextual next-step suggestions.
+type Suggestion struct {
+	Action      string // suggested action name
+	Description string // why this action makes sense next
+}
+
 type ExecutionResult struct {
 	Data        any
 	Summary     string
-	ContentType string // MIME type hint for agents: "text/plain", "application/json", etc.
+	ContentType string       // MIME type hint for agents: "text/plain", "application/json", etc.
+	Suggestions []Suggestion // contextual next-step hints for agents
 }
 
 type FailureReason struct {
