@@ -48,8 +48,15 @@ type PluginSnapshot struct {
 	Status       string               `json:"status"`
 }
 
+// CurrentSessionSchema is the snapshot schema version this build emits.
+// Persistence adapters may use this to branch on future incompatible
+// changes. Snapshots loaded from disk with an empty Schema field are
+// treated as schema "1".
+const CurrentSessionSchema = "1"
+
 // SessionSnapshot is the serializable form of ExecutionSession.
 type SessionSnapshot struct {
+	Schema               string                    `json:"schema,omitempty"`
 	ID                   string                    `json:"id"`
 	ActionName           string                    `json:"action_name"`
 	Input                any                       `json:"input"`
@@ -266,6 +273,7 @@ func (s *ExecutionSession) ToSnapshot() SessionSnapshot {
 		evidence[i] = EvidenceSnapshot(e)
 	}
 	snap := SessionSnapshot{
+		Schema:               CurrentSessionSchema,
 		ID:                   string(s.id),
 		ActionName:           string(s.actionName),
 		Input:                s.input,

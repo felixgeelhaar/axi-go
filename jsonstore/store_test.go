@@ -1,6 +1,9 @@
 package jsonstore_test
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/felixgeelhaar/axi-go/domain"
@@ -268,6 +271,66 @@ func TestSessionStore_RoundTrip_Suggestions(t *testing.T) {
 	}
 	if result.Suggestions[1].Action != "resource.list" {
 		t.Errorf("Suggestions[1].Action = %q, want resource.list", result.Suggestions[1].Action)
+	}
+}
+
+func TestSessionStore_RoundTrip_SchemaVersion(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s-schema", "noop", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkRunning()
+	_ = session.Succeed(domain.ExecutionResult{Data: "ok"})
+
+	if err := store.Save(session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Read the raw snapshot from disk and verify the schema field is set.
+	path := filepath.Join(dir, "sessions", "s-schema.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if parsed["schema"] != domain.CurrentSessionSchema {
+		t.Errorf("schema = %v, want %q", parsed["schema"], domain.CurrentSessionSchema)
+	}
+}
+
+func TestSessionStore_LoadsLegacySnapshotWithoutSchemaField(t *testing.T) {
+	dir := t.TempDir()
+	sessionsDir := filepath.Join(dir, "sessions")
+	if err := os.MkdirAll(sessionsDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// Pre-schema snapshot (omits the schema field entirely).
+	legacy := `{
+		"id": "legacy-1",
+		"action_name": "old-action",
+		"input": null,
+		"status": "succeeded",
+		"requires_approval": false,
+		"resolved_capabilities": [],
+		"evidence": [],
+		"result": {"data": "ok", "summary": ""}
+	}`
+	if err := os.WriteFile(filepath.Join(sessionsDir, "legacy-1.json"), []byte(legacy), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	store, _ := jsonstore.NewSessionStore(dir)
+	got, err := store.Get("legacy-1")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Status() != domain.StatusSucceeded {
+		t.Errorf("status = %s, want succeeded", got.Status())
 	}
 }
 
