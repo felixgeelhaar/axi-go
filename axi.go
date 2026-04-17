@@ -202,10 +202,11 @@ func (k *Kernel) Approve(ctx context.Context, sessionID string, decision domain.
 	return k.execute.ApproveSession(ctx, domain.ExecutionSessionID(sessionID), decision)
 }
 
-// Reject rejects a session in AwaitingApproval state with a reason.
-// The decision must include a non-empty Principal identifying who rejected.
-func (k *Kernel) Reject(sessionID, reason string, decision domain.ApprovalDecision) (*Result, error) {
-	return k.execute.RejectSession(domain.ExecutionSessionID(sessionID), reason, decision)
+// Reject rejects a session in AwaitingApproval state. The decision's
+// Rationale is recorded as the FailureReason.Message; Principal is required
+// non-empty. Signature is symmetric with Approve.
+func (k *Kernel) Reject(ctx context.Context, sessionID string, decision domain.ApprovalDecision) (*Result, error) {
+	return k.execute.RejectSession(ctx, domain.ExecutionSessionID(sessionID), decision)
 }
 
 // GetSession returns the current state of an execution session by ID.

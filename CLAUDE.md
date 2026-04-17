@@ -54,7 +54,7 @@ kernel.RegisterBundle(bundle)  // atomic: metadata + executors
 result, err := kernel.Execute(ctx, axi.Invocation{Action: "x", Input: ...})
 result, err := kernel.ExecuteAsync(ctx, inv)
 result, err := kernel.Approve(ctx, sessionID)
-result, err := kernel.Reject(sessionID, reason)
+result, err := kernel.Reject(ctx, sessionID, decision)
 
 actions := kernel.ListActions()
 session, _ := kernel.GetSession(sessionID)

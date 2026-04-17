@@ -159,6 +159,37 @@ func TestKernel_ApprovalFlow(t *testing.T) {
 	}
 }
 
+func TestKernel_RejectFlow(t *testing.T) {
+	kernel := axi.New()
+	kernel.RegisterActionExecutor("exec.send", &echoExecutor{})
+	_ = kernel.RegisterPlugin(&externalPlugin{})
+
+	result, err := kernel.Execute(context.Background(), axi.Invocation{
+		Action: "send", Input: map[string]any{"to": "world"},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.Status != domain.StatusAwaitingApproval {
+		t.Fatalf("expected awaiting_approval, got %s", result.Status)
+	}
+
+	rejected, err := kernel.Reject(context.Background(), string(result.SessionID),
+		domain.ApprovalDecision{Principal: "reviewer", Rationale: "risk too high"})
+	if err != nil {
+		t.Fatalf("reject: %v", err)
+	}
+	if rejected.Status != domain.StatusRejected {
+		t.Errorf("expected rejected, got %s", rejected.Status)
+	}
+	if rejected.Failure == nil || rejected.Failure.Message != "risk too high" {
+		t.Errorf("failure message should come from Rationale, got %+v", rejected.Failure)
+	}
+	if rejected.ApprovalDecision == nil || rejected.ApprovalDecision.Principal != "reviewer" {
+		t.Errorf("decision should carry principal, got %+v", rejected.ApprovalDecision)
+	}
+}
+
 func TestKernel_Async(t *testing.T) {
 	kernel := axi.New()
 	kernel.RegisterActionExecutor("exec.echo", &echoExecutor{})

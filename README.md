@@ -169,7 +169,7 @@ result, _ := kernel.ExecuteAsync(ctx, axi.Invocation{Action: "x", Input: ...})
 
 // Approval flow
 result, _ := kernel.Approve(ctx, sessionID)
-result, _ := kernel.Reject(sessionID, "too risky")
+result, _ := kernel.Reject(ctx, sessionID, domain.ApprovalDecision{Principal: "reviewer@example.com", Rationale: "too risky"})
 
 // Introspection
 actions := kernel.ListActions()
