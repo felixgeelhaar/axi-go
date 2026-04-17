@@ -86,7 +86,7 @@ func (uc *ExecuteActionUseCase) ExecuteAsync(ctx context.Context, input ExecuteA
 			}
 			_ = uc.SessionRepo.Save(session)
 		}()
-		bgCtx := context.Background()
+		bgCtx := context.WithoutCancel(ctx)
 		_ = uc.ExecutionService.Execute(bgCtx, session)
 	}()
 

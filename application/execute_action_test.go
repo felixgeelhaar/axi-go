@@ -281,6 +281,52 @@ func TestPluginRegistration_ViaPluginInterface(t *testing.T) {
 	}
 }
 
+func TestExecuteAsync_PropagatesContextValues(t *testing.T) {
+	registerUC, executeUC, actionExecReg, _ := setupFullSystem(t)
+
+	type ctxKey struct{}
+	const sentinel = "trace-id-abc123"
+
+	// Channel to capture the context value observed inside the executor.
+	observed := make(chan any, 1)
+
+	actionName, _ := domain.NewActionName("async-ctx")
+	action, _ := domain.NewActionDefinition(
+		actionName, "Checks context propagation",
+		domain.EmptyContract(), domain.EmptyContract(),
+		nil, domain.EffectProfile{}, domain.IdempotencyProfile{},
+	)
+	_ = action.BindExecutor("exec.async-ctx")
+	actionExecReg.Register("exec.async-ctx", &stubActionExecutor{
+		fn: func(ctx context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			observed <- ctx.Value(ctxKey{})
+			return domain.ExecutionResult{Data: "ok", Summary: "done"}, nil, nil
+		},
+	})
+
+	plugin, _ := domain.NewPluginContribution("async-ctx.plugin", []*domain.ActionDefinition{action}, nil)
+	if err := registerUC.Execute(plugin); err != nil {
+		t.Fatalf("failed to register plugin: %v", err)
+	}
+
+	// Put a value on the caller's context.
+	ctx := context.WithValue(context.Background(), ctxKey{}, sentinel)
+
+	_, err := executeUC.ExecuteAsync(ctx, application.ExecuteActionInput{
+		ActionName: "async-ctx",
+		Input:      nil,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteAsync failed: %v", err)
+	}
+
+	// Wait for the background goroutine to report the value it observed.
+	got := <-observed
+	if got != sentinel {
+		t.Errorf("expected context value %q, got %v", sentinel, got)
+	}
+}
+
 func TestPluginRegistration_ConflictingActionNamesRejected(t *testing.T) {
 	registerUC, _, actionExecReg, _ := setupFullSystem(t)
 
