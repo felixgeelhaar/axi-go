@@ -8,6 +8,15 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-18
+
+First stable release. All six items on the
+[docs/ROADMAP.md](docs/ROADMAP.md) 1.0 checklist are met: API stability,
+Godoc completeness, persistence schema frozen at v1, CI quality floor,
+security posture, and adoption signal. From this tag onwards axi-go
+follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
+and the deprecation policy documented in docs/ROADMAP.md.
+
 ### Added — axi.md alignment (principles 1–5, 9, 10)
 
 - **TOON encoder** (`toon/`) — Token-Optimized Object Notation for result
@@ -122,4 +131,5 @@ The library will not retroactively promote any specific adopter into a
 adopt axi-go, that will be reflected in future release notes or README
 content, but 1.0 does not gate on it.
 
-[Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/df0fda9...HEAD
+[Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/felixgeelhaar/axi-go/compare/df0fda9...v1.0.0
