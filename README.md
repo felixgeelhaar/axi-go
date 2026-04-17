@@ -170,7 +170,11 @@ caps    := kernel.ListCapabilities()
 session, _ := kernel.GetSession(sessionID)
 
 // Or with pre-computed aggregates (axi.md #4):
-r := kernel.ListActionsResult() // r.Items, r.TotalCount
+r := kernel.ListActionsResult()       // r.Items, r.TotalCount, r.IsEmpty()
+s := kernel.ListActionSummaries()     // minimal-schema view (axi.md #2)
+
+// Help for an action or capability (axi.md #10)
+text, _ := kernel.Help("greet")
 ```
 
 ## Safety & Control
@@ -245,6 +249,44 @@ bounded without silently dropping data:
 ```go
 out, truncated := axi.Truncate(longBody, 500)
 // "…first 500 chars… (truncated, 2847 chars total)"
+```
+
+### Minimal schemas and empty states (axi.md #2, #5)
+
+`Kernel.ListActionSummaries` and `Kernel.ListCapabilitySummaries` return a
+discovery-oriented projection (name, description, effect/idempotency for
+actions) instead of full aggregates. All list responses share the
+`ListResult[T]` shape with `TotalCount` and `IsEmpty()` so callers can
+distinguish "no results" from "not queried":
+
+```go
+r := kernel.ListActionSummaries()
+if r.IsEmpty() {
+    fmt.Println("no actions registered")
+}
+for _, s := range r.Items {
+    fmt.Printf("  %s  (%s, idempotent=%t) — %s\n",
+        s.Name, s.Effect, s.Idempotent, s.Description)
+}
+```
+
+### Help (axi.md #10)
+
+`ActionDefinition.Help()` and `CapabilityDefinition.Help()` return a
+formatted reference with contracts and capability requirements.
+`Kernel.Help(name)` looks up the name as an action first, then as a
+capability — a consistent fallback when contextual suggestions aren't
+enough:
+
+```go
+text, _ := kernel.Help("greet")
+// greet — Greet someone by name
+// Effect: none  Idempotent: true
+//
+// Input:
+//   name  (string, required)  Person to greet
+//     example: world
+// ...
 ```
 
 ## Persistence
