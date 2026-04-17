@@ -34,6 +34,15 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 Atomic commits — one logical change per commit. The pre-commit hook runs fmt, lint, vet, and all tests.
 
+### Sign-offs (DCO)
+
+All commits must be signed off with `git commit -s`, which appends a
+`Signed-off-by: Your Name <your@email>` line and certifies the
+[Developer Certificate of Origin](https://developercertificate.org/) —
+a lightweight attestation that you have the right to submit the patch
+under the project's license. No CLA to sign; the sign-off is the
+paper trail.
+
 ## Pull request checklist
 
 - [ ] `make check` passes locally

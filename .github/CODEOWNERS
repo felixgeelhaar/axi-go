@@ -1,0 +1,15 @@
+# CODEOWNERS defines who must review changes to each part of the repo.
+# Github enforces this once branch protection is enabled with
+# "Require review from Code Owners".
+#
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+# Default owner — required reviewer on every PR.
+*                           @felixgeelhaar
+
+# Security-sensitive paths get the same owner today but are called out
+# so adding a dedicated security reviewer later is a one-line change.
+/.github/workflows/         @felixgeelhaar
+/.github/SECURITY.md        @felixgeelhaar
+/domain/                    @felixgeelhaar
+/jsonstore/                 @felixgeelhaar
