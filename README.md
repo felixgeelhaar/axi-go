@@ -69,6 +69,8 @@ func main() {
 ```
 
 See [`example/main.go`](example/main.go) for a complete runnable example.
+For an MCP (Model Context Protocol) adapter in ~250 lines with no external
+deps, see [`example/mcp-server/`](example/mcp-server/).
 
 ## Core Concepts
 
