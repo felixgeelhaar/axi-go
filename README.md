@@ -75,7 +75,8 @@ deps, see [`example/mcp-server/`](example/mcp-server/).
 If you want to understand the *why* behind the shape of the library — the
 reasoning that makes actions, capabilities, effect profiles, and evidence
 inevitable once you accept certain premises — read
-[`docs/CONCEPTS.md`](docs/CONCEPTS.md).
+[`docs/CONCEPTS.md`](docs/CONCEPTS.md). For 1.0 criteria, versioning, and
+deprecation policy, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Core Concepts
 
