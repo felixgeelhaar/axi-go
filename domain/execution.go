@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // ActionExecutor executes an action with access to capabilities.
@@ -170,7 +171,7 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 	if err != nil {
 		return fmt.Errorf("capability resolution failed: %w", err)
 	}
-	invoker, err := s.buildInvoker(ctx, resolvedCaps)
+	invoker, err := s.buildInvoker(ctx, resolvedCaps, action.IdempotencyProfile().IsIdempotent)
 	if err != nil {
 		return fmt.Errorf("failed to build capability invoker: %w", err)
 	}
@@ -235,7 +236,8 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 }
 
 // buildInvoker creates a CapabilityInvoker from resolved capabilities.
-func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities []*CapabilityDefinition) (CapabilityInvoker, error) {
+// idempotent is the action's idempotency flag and gates retry eligibility.
+func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities []*CapabilityDefinition, idempotent bool) (CapabilityInvoker, error) {
 	capMap := make(map[CapabilityName]*CapabilityDefinition, len(capabilities))
 	for _, c := range capabilities {
 		capMap[c.Name()] = c
@@ -245,6 +247,9 @@ func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities 
 		capabilities: capMap,
 		executors:    s.capExecutors,
 		budget:       newBudgetEnforcer(s.defaultBudget),
+		idempotent:   idempotent,
+		maxRetries:   s.defaultBudget.MaxRetries,
+		retryBackoff: s.defaultBudget.RetryBackoff,
 	}, nil
 }
 
@@ -253,6 +258,9 @@ type boundInvoker struct {
 	capabilities map[CapabilityName]*CapabilityDefinition
 	executors    CapabilityExecutorLookup
 	budget       *budgetEnforcer
+	idempotent   bool
+	maxRetries   int
+	retryBackoff time.Duration
 }
 
 func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
@@ -267,7 +275,38 @@ func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("executor for capability %q not found: %w", name, err)
 	}
-	// If the executor supports composition, pass the invoker so it can call other capabilities.
+
+	// Retries apply only when the action is idempotent and a retry budget is
+	// configured. Retries do not consume additional MaxCapabilityInvocations
+	// slots, but MaxDuration still bounds total wall-clock cost.
+	attempt := 0
+	for {
+		result, err := i.invokeOnce(executor, input)
+		if err == nil {
+			return result, nil
+		}
+		if !i.idempotent || attempt >= i.maxRetries {
+			return nil, err
+		}
+		if ctxErr := i.ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		// Exponential backoff: RetryBackoff, 2x, 4x, ...
+		delay := i.retryBackoff << attempt //nolint:gosec // attempt bounded by maxRetries
+		if delay > 0 {
+			timer := time.NewTimer(delay)
+			select {
+			case <-timer.C:
+			case <-i.ctx.Done():
+				timer.Stop()
+				return nil, i.ctx.Err()
+			}
+		}
+		attempt++
+	}
+}
+
+func (i *boundInvoker) invokeOnce(executor CapabilityExecutor, input any) (any, error) {
 	if composable, ok := executor.(ComposableCapabilityExecutor); ok {
 		return composable.ExecuteWithInvoker(i.ctx, input, i)
 	}

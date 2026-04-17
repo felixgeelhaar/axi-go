@@ -11,6 +11,8 @@ type ExecutionBudget struct {
 	MaxDuration              time.Duration // Zero means no limit.
 	MaxCapabilityInvocations int           // Zero means no limit.
 	MaxTokens                int64         // Zero means no limit. Summed from EvidenceRecord.TokensUsed after execution.
+	MaxRetries               int           // Per-invocation retries for idempotent actions. Zero means no retries.
+	RetryBackoff             time.Duration // Initial backoff between retries; doubled each attempt (exponential).
 }
 
 // budgetEnforcer tracks usage against a budget during execution.

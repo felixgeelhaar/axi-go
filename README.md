@@ -183,7 +183,7 @@ text, _ := kernel.Help("greet")
 |---------|--------------|
 | **Effect profiles** | `none`, `read-local`, `write-local`, `read-external`, `write-external` |
 | **Approval gate** | `write-external` actions pause at `awaiting_approval` — call `kernel.Approve(...)` |
-| **Execution budgets** | Max duration, max capability invocations, and max tokens per session |
+| **Execution budgets** | Max duration, max capability invocations, max tokens, and idempotency-gated retries per session |
 | **Rate limiting** | Pluggable `RateLimiter` checked before each execution |
 | **Output validation** | Results validated against output contracts before `succeeded` |
 | **Idempotency profile** | Actions declare whether they're safe to retry |
