@@ -17,6 +17,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -131,9 +132,25 @@ func main() {
 	serve(os.Stdin, os.Stdout, logger, kernel)
 }
 
+// Hardening limits. Real MCP clients should never approach these; they exist
+// to bound the damage from a malformed or adversarial input on stdin.
+const (
+	maxLineBytes       = 1 << 20 // 1 MiB single request
+	maxArgumentEntries = 64      // maximum top-level keys in tools/call arguments
+)
+
+// JSON-RPC 2.0 error codes per spec (https://www.jsonrpc.org/specification).
+const (
+	rpcCodeParseError     = -32700
+	rpcCodeInvalidRequest = -32600
+	rpcCodeMethodNotFound = -32601
+	rpcCodeInvalidParams  = -32602
+	rpcCodeInternalError  = -32603
+)
+
 func serve(r io.Reader, w io.Writer, logger *log.Logger, kernel *axi.Kernel) {
 	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxLineBytes)
 	enc := json.NewEncoder(w)
 
 	for scanner.Scan() {
@@ -143,14 +160,21 @@ func serve(r io.Reader, w io.Writer, logger *log.Logger, kernel *axi.Kernel) {
 		}
 		var req rpcRequest
 		if err := json.Unmarshal(line, &req); err != nil {
-			logger.Printf("parse error: %v", err)
+			// Log only the byte count, never the raw bytes — those are
+			// attacker-controlled and must not land in logs verbatim.
+			logger.Printf("parse error on %d bytes: %v", len(line), err)
+			writeErr(enc, logger, nil, rpcCodeParseError, "parse error")
+			continue
+		}
+		if req.JSONRPC != "2.0" {
+			writeErr(enc, logger, req.ID, rpcCodeInvalidRequest, "jsonrpc field must be \"2.0\"")
 			continue
 		}
 
 		resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
-		result, err := dispatch(kernel, req)
+		result, code, err := dispatch(kernel, req)
 		if err != nil {
-			resp.Error = &rpcError{Code: -32000, Message: err.Error()}
+			resp.Error = &rpcError{Code: code, Message: err.Error()}
 		} else {
 			resp.Result = result
 		}
@@ -160,11 +184,26 @@ func serve(r io.Reader, w io.Writer, logger *log.Logger, kernel *axi.Kernel) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		logger.Printf("read error: %v", err)
+		if errors.Is(err, bufio.ErrTooLong) {
+			logger.Printf("input exceeded %d bytes; dropping connection", maxLineBytes)
+		} else {
+			logger.Printf("read error: %v", err)
+		}
 	}
 }
 
-func dispatch(kernel *axi.Kernel, req rpcRequest) (any, error) {
+func writeErr(enc *json.Encoder, logger *log.Logger, id json.RawMessage, code int, msg string) {
+	resp := rpcResponse{
+		JSONRPC: "2.0",
+		ID:      id,
+		Error:   &rpcError{Code: code, Message: msg},
+	}
+	if err := enc.Encode(resp); err != nil {
+		logger.Printf("write err: %v", err)
+	}
+}
+
+func dispatch(kernel *axi.Kernel, req rpcRequest) (any, int, error) {
 	switch req.Method {
 	case "initialize":
 		return initializeResult{
@@ -174,20 +213,27 @@ func dispatch(kernel *axi.Kernel, req rpcRequest) (any, error) {
 				"name":    "axi-go-mcp-example",
 				"version": "0.1.0",
 			},
-		}, nil
+		}, 0, nil
 
 	case "tools/list":
-		return handleList(kernel), nil
+		return handleList(kernel), 0, nil
 
 	case "tools/call":
 		var params callToolParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return nil, fmt.Errorf("invalid params: %w", err)
+			return nil, rpcCodeInvalidParams, fmt.Errorf("invalid params: %w", err)
 		}
-		return handleCall(kernel, params), nil
+		if params.Name == "" {
+			return nil, rpcCodeInvalidParams, fmt.Errorf("tool name is required")
+		}
+		if len(params.Arguments) > maxArgumentEntries {
+			return nil, rpcCodeInvalidParams,
+				fmt.Errorf("arguments has %d entries, max %d", len(params.Arguments), maxArgumentEntries)
+		}
+		return handleCall(kernel, params), 0, nil
 
 	default:
-		return nil, fmt.Errorf("unknown method: %s", req.Method)
+		return nil, rpcCodeMethodNotFound, fmt.Errorf("unknown method: %s", req.Method)
 	}
 }
 
