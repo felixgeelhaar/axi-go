@@ -286,6 +286,41 @@ func TestPipelineFailure_EvidenceCapturesSaga(t *testing.T) {
 	}
 }
 
+func TestPipelineFailure_EvidenceWithTokens(t *testing.T) {
+	inv := &recordingInvoker{executors: map[domain.CapabilityName]func(any) (any, error){
+		"a":    func(any) (any, error) { return "A", nil },
+		"b":    func(any) (any, error) { return "B", nil },
+		"boom": func(any) (any, error) { return nil, errors.New("fail") },
+	}}
+	p := &domain.Pipeline{Steps: []domain.PipelineStep{
+		{Capability: "a", Compensate: func(context.Context, any) error { return nil }},
+		{Capability: "b", Compensate: func(context.Context, any) error { return nil }},
+		{Capability: "boom"},
+	}}
+	_, err := p.ExecuteWithInvoker(context.Background(), nil, inv)
+	var pf *domain.PipelineFailure
+	if !errors.As(err, &pf) {
+		t.Fatalf("expected *PipelineFailure")
+	}
+
+	records := pf.EvidenceWithTokens(func(cs domain.CompensatedStep) int64 {
+		switch cs.Capability {
+		case "a":
+			return 10
+		case "b":
+			return 20
+		}
+		return 0
+	})
+	var totalTokens int64
+	for _, r := range records {
+		totalTokens += r.TokensUsed
+	}
+	if totalTokens != 30 {
+		t.Errorf("sum of TokensUsed = %d, want 30", totalTokens)
+	}
+}
+
 func TestPipeline_NoCompensationOnSuccess(t *testing.T) {
 	called := false
 	p := &domain.Pipeline{Steps: []domain.PipelineStep{

@@ -55,7 +55,19 @@ type PipelineFailure struct {
 // Evidence converts the failure (including all compensation attempts) into
 // EvidenceRecord entries an action executor can return on the session's
 // evidence trail. Keeps the saga visible in the audit log.
+//
+// Emitted EvidenceRecord.TokensUsed is always zero — Pipeline does not know
+// the token cost of a compensator. Use EvidenceWithTokens if compensation
+// cost should count toward the session's token budget.
 func (e *PipelineFailure) Evidence() []EvidenceRecord {
+	return e.EvidenceWithTokens(nil)
+}
+
+// EvidenceWithTokens is like Evidence but lets the caller attribute token
+// cost per compensated step. The tokens function is invoked once per entry
+// in Compensated; return 0 to leave that record uncounted. Nil tokens is
+// equivalent to Evidence.
+func (e *PipelineFailure) EvidenceWithTokens(tokens func(CompensatedStep) int64) []EvidenceRecord {
 	records := make([]EvidenceRecord, 0, 1+len(e.Compensated))
 	records = append(records, EvidenceRecord{
 		Kind:   "pipeline.failure",
@@ -78,10 +90,15 @@ func (e *PipelineFailure) Evidence() []EvidenceRecord {
 		} else {
 			entry["status"] = "ok"
 		}
+		var cost int64
+		if tokens != nil {
+			cost = tokens(cs)
+		}
 		records = append(records, EvidenceRecord{
-			Kind:   "pipeline.compensation",
-			Source: string(cs.Capability),
-			Value:  entry,
+			Kind:       "pipeline.compensation",
+			Source:     string(cs.Capability),
+			Value:      entry,
+			TokensUsed: cost,
 		})
 	}
 	return records
