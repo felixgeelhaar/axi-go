@@ -3,6 +3,7 @@ package axi_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -185,6 +186,92 @@ func TestKernel_Async(t *testing.T) {
 		}
 	}
 	t.Error("async execution did not complete")
+}
+
+// panicExecutor panics on every execution. Used to verify async panic
+// recovery: the kernel's ExecuteAsync goroutine must not crash the process
+// and the session must transition to Failed with a PANIC reason.
+type panicExecutor struct{}
+
+func (e *panicExecutor) Execute(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	panic("boom")
+}
+
+type panicPlugin struct{}
+
+func (p *panicPlugin) Contribute() (*domain.PluginContribution, error) {
+	action, _ := domain.NewActionDefinition(
+		"panic-me", "Always panics",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectNone},
+		domain.IdempotencyProfile{},
+	)
+	_ = action.BindExecutor("exec.panic")
+	return domain.NewPluginContribution("panic.plugin",
+		[]*domain.ActionDefinition{action}, nil)
+}
+
+func TestKernel_ExecuteAsync_ParallelPanics(t *testing.T) {
+	kernel := axi.New()
+	kernel.RegisterActionExecutor("exec.panic", &panicExecutor{})
+	if err := kernel.RegisterPlugin(&panicPlugin{}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	const parallelism = 32
+	sessions := make([]string, parallelism)
+
+	// Fire N async executions concurrently. Each one panics inside its
+	// goroutine; the kernel's panic recovery must translate that into a
+	// Failed session without crashing the process or racing on shared state.
+	var wg sync.WaitGroup
+	wg.Add(parallelism)
+	for i := 0; i < parallelism; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			out, err := kernel.ExecuteAsync(context.Background(), axi.Invocation{
+				Action: "panic-me",
+				Input:  map[string]any{"i": i},
+			})
+			if err != nil {
+				t.Errorf("ExecuteAsync #%d: %v", i, err)
+				return
+			}
+			sessions[i] = string(out.SessionID)
+		}()
+	}
+	wg.Wait()
+
+	// Poll each session until it settles (Succeeded or Failed). With panics,
+	// every one of them should end up Failed.
+	deadline := time.Now().Add(2 * time.Second)
+	for _, id := range sessions {
+		if id == "" {
+			continue
+		}
+		for {
+			session, err := kernel.GetSession(id)
+			if err == nil {
+				status := session.Status()
+				if status == domain.StatusFailed {
+					if f := session.Failure(); f == nil || f.Code != "PANIC" {
+						t.Errorf("session %s: expected PANIC failure, got %+v", id, f)
+					}
+					break
+				}
+				if status == domain.StatusSucceeded {
+					t.Errorf("session %s: expected Failed, got Succeeded", id)
+					break
+				}
+			}
+			if time.Now().After(deadline) {
+				t.Errorf("session %s did not settle within deadline", id)
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
 }
 
 func TestKernel_RegisterBundle(t *testing.T) {
