@@ -267,11 +267,11 @@ func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
 	if err := i.budget.checkInvocation(); err != nil {
 		return nil, err
 	}
-	cap, ok := i.capabilities[name]
+	c, ok := i.capabilities[name]
 	if !ok {
 		return nil, fmt.Errorf("capability %q not available in this execution context", name)
 	}
-	executor, err := i.executors.GetCapabilityExecutor(cap.ExecutionBinding())
+	executor, err := i.executors.GetCapabilityExecutor(c.ExecutionBinding())
 	if err != nil {
 		return nil, fmt.Errorf("executor for capability %q not found: %w", name, err)
 	}

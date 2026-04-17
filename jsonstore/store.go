@@ -99,10 +99,10 @@ func NewCapabilityStore(dir string) (*CapabilityStore, error) {
 	return &CapabilityStore{dir: d}, nil
 }
 
-func (s *CapabilityStore) Save(cap *domain.CapabilityDefinition) error {
+func (s *CapabilityStore) Save(c *domain.CapabilityDefinition) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return writeJSON(filepath.Join(s.dir, string(cap.Name())+".json"), cap.ToSnapshot())
+	return writeJSON(filepath.Join(s.dir, string(c.Name())+".json"), c.ToSnapshot())
 }
 
 func (s *CapabilityStore) GetByName(name domain.CapabilityName) (*domain.CapabilityDefinition, error) {
@@ -195,12 +195,12 @@ func reconstructPlugin(snap domain.PluginSnapshot) (*domain.PluginContribution, 
 		actions[i] = action
 	}
 	caps := make([]*domain.CapabilityDefinition, len(snap.Capabilities))
-	for i, c := range snap.Capabilities {
-		cap, err := domain.CapabilityFromSnapshot(c)
+	for i, snapCap := range snap.Capabilities {
+		capDef, err := domain.CapabilityFromSnapshot(snapCap)
 		if err != nil {
 			return nil, err
 		}
-		caps[i] = cap
+		caps[i] = capDef
 	}
 	id, err := domain.NewPluginID(snap.PluginID)
 	if err != nil {

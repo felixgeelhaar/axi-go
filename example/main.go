@@ -23,13 +23,13 @@ type greeterPlugin struct{}
 
 func (p *greeterPlugin) Contribute() (*domain.PluginContribution, error) {
 	capName, _ := domain.NewCapabilityName("string.upper")
-	cap, _ := domain.NewCapabilityDefinition(capName, "Uppercases a string",
+	upperCap, _ := domain.NewCapabilityDefinition(capName, "Uppercases a string",
 		domain.NewContract([]domain.ContractField{
 			{Name: "text", Type: "string", Description: "Text to uppercase", Required: true, Example: "hello"},
 		}),
 		domain.EmptyContract(),
 	)
-	_ = cap.BindExecutor("exec.string.upper")
+	_ = upperCap.BindExecutor("exec.string.upper")
 
 	actionName, _ := domain.NewActionName("greet")
 	reqs, _ := domain.NewRequirementSet(domain.Requirement{Capability: capName})
@@ -50,7 +50,7 @@ func (p *greeterPlugin) Contribute() (*domain.PluginContribution, error) {
 
 	return domain.NewPluginContribution("greeter.plugin",
 		[]*domain.ActionDefinition{action},
-		[]*domain.CapabilityDefinition{cap},
+		[]*domain.CapabilityDefinition{upperCap},
 	)
 }
 

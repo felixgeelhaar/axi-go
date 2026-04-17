@@ -126,10 +126,10 @@ func (s *CompositionService) RegisterContribution(contribution *PluginContributi
 	}
 
 	// Check global capability name uniqueness.
-	for _, cap := range contribution.Capabilities() {
-		_, err := s.capabilityRepo.GetByName(cap.Name())
+	for _, c := range contribution.Capabilities() {
+		_, err := s.capabilityRepo.GetByName(c.Name())
 		if err == nil {
-			return &ErrConflict{Message: fmt.Sprintf("capability name %q conflicts with existing registration", cap.Name())}
+			return &ErrConflict{Message: fmt.Sprintf("capability name %q conflicts with existing registration", c.Name())}
 		}
 	}
 
@@ -159,12 +159,12 @@ func (s *CompositionService) RegisterContribution(contribution *PluginContributi
 		}
 		savedActions = append(savedActions, action.Name())
 	}
-	for _, cap := range contribution.Capabilities() {
-		if err := s.capabilityRepo.Save(cap); err != nil {
+	for _, c := range contribution.Capabilities() {
+		if err := s.capabilityRepo.Save(c); err != nil {
 			rollback()
-			return fmt.Errorf("failed to save capability %q: %w", cap.Name(), err)
+			return fmt.Errorf("failed to save capability %q: %w", c.Name(), err)
 		}
-		savedCaps = append(savedCaps, cap.Name())
+		savedCaps = append(savedCaps, c.Name())
 	}
 
 	if err := s.pluginRepo.Save(contribution); err != nil {
@@ -188,8 +188,8 @@ func (s *CompositionService) DeregisterPlugin(id PluginID) error {
 	for _, action := range contribution.Actions() {
 		_ = s.actionRepo.Delete(action.Name())
 	}
-	for _, cap := range contribution.Capabilities() {
-		_ = s.capabilityRepo.Delete(cap.Name())
+	for _, c := range contribution.Capabilities() {
+		_ = s.capabilityRepo.Delete(c.Name())
 	}
 
 	return s.pluginRepo.Delete(id)

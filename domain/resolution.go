@@ -14,14 +14,14 @@ func NewCapabilityResolutionService(capabilityRepo CapabilityRepository) *Capabi
 func (s *CapabilityResolutionService) Resolve(requirements RequirementSet) ([]*CapabilityDefinition, error) {
 	resolved := make([]*CapabilityDefinition, 0, len(requirements))
 	for _, req := range requirements {
-		cap, err := s.capabilityRepo.GetByName(req.Capability)
+		c, err := s.capabilityRepo.GetByName(req.Capability)
 		if err != nil {
 			return nil, &ErrNotFound{Entity: "capability", ID: string(req.Capability)}
 		}
-		if cap == nil {
+		if c == nil {
 			return nil, &ErrNotFound{Entity: "capability", ID: string(req.Capability)}
 		}
-		resolved = append(resolved, cap)
+		resolved = append(resolved, c)
 	}
 	return resolved, nil
 }

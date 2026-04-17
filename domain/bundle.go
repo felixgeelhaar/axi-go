@@ -34,13 +34,13 @@ func NewPluginBundle(
 	}
 
 	// Validate all capability executor refs have matching executors.
-	for _, cap := range contribution.capabilities {
-		ref := cap.ExecutionBinding()
+	for _, c := range contribution.capabilities {
+		ref := c.ExecutionBinding()
 		if ref == "" {
 			continue
 		}
 		if _, ok := capabilityExecutors[ref]; !ok {
-			return nil, fmt.Errorf("capability %q references executor %q but no executor provided", cap.Name(), ref)
+			return nil, fmt.Errorf("capability %q references executor %q but no executor provided", c.Name(), ref)
 		}
 	}
 
