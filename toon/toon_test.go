@@ -146,13 +146,14 @@ func TestEncode_HeterogeneousArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	// Falls back to numbered-entry form.
+	// Falls back to numbered-entry form. Numeric index keys are quoted so
+	// they can't be confused with numeric values by an agent reader.
 	want := strings.Join([]string{
-		"mixed[3]:",
-		"  0: a",
-		"  1:",
-		"    k: v",
-		"  2: 42",
+		`mixed[3]:`,
+		`  "0": a`,
+		`  "1":`,
+		`    k: v`,
+		`  "2": 42`,
 	}, "\n")
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)

@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Encode returns the TOON encoding of v.
@@ -65,22 +66,23 @@ func encodeMap(sb *strings.Builder, m map[string]any, indent int) error {
 
 func encodeEntry(sb *strings.Builder, key string, v any, indent int) error {
 	pad := pad(indent)
+	safeKey := quoteIfNeeded(key)
 	switch x := v.(type) {
 	case map[string]any:
 		if len(x) == 0 {
-			fmt.Fprintf(sb, "%s%s:\n", pad, key)
+			fmt.Fprintf(sb, "%s%s:\n", pad, safeKey)
 			return nil
 		}
-		fmt.Fprintf(sb, "%s%s:\n", pad, key)
+		fmt.Fprintf(sb, "%s%s:\n", pad, safeKey)
 		return encodeMap(sb, x, indent+1)
 	case []any:
-		return encodeSlice(sb, key, x, indent)
+		return encodeSlice(sb, safeKey, x, indent)
 	default:
 		s, ok := scalar(v)
 		if !ok {
 			return fmt.Errorf("toon: unsupported value type %T at key %q", v, key)
 		}
-		fmt.Fprintf(sb, "%s%s: %s\n", pad, key, s)
+		fmt.Fprintf(sb, "%s%s: %s\n", pad, safeKey, s)
 		return nil
 	}
 }
@@ -88,7 +90,11 @@ func encodeEntry(sb *strings.Builder, key string, v any, indent int) error {
 func encodeSlice(sb *strings.Builder, key string, s []any, indent int) error {
 	pad := pad(indent)
 	if fields := uniformMapFields(s); fields != nil {
-		fmt.Fprintf(sb, "%s%s[%d]{%s}:\n", pad, key, len(s), strings.Join(fields, ","))
+		safeFields := make([]string, len(fields))
+		for i, f := range fields {
+			safeFields[i] = quoteIfNeeded(f)
+		}
+		fmt.Fprintf(sb, "%s%s[%d]{%s}:\n", pad, key, len(s), strings.Join(safeFields, ","))
 		for _, item := range s {
 			m := item.(map[string]any)
 			vals := make([]string, len(fields))
@@ -222,6 +228,11 @@ func quoteIfNeeded(s string) string {
 }
 
 func needsQuote(s string) bool {
+	// Invalid UTF-8 must be escaped via strconv.Quote, otherwise the encoder
+	// emits byte sequences that agents cannot parse as text.
+	if !utf8.ValidString(s) {
+		return true
+	}
 	switch s {
 	case "null", "true", "false":
 		return true
@@ -235,6 +246,11 @@ func needsQuote(s string) bool {
 	for _, r := range s {
 		switch r {
 		case ':', ',', '\n', '\r', '"', '\\':
+			return true
+		}
+		// Any control character (including NUL, tab, DEL) forces quoting so
+		// it can be safely escaped by strconv.Quote.
+		if r < 0x20 || r == 0x7f {
 			return true
 		}
 	}

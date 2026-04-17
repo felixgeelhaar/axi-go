@@ -1,0 +1,6 @@
+go test fuzz v1
+string("\xcb")
+string("0")
+int64(77)
+bool(false)
+bool(true)
