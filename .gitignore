@@ -34,5 +34,10 @@ findings.json
 # Relicta
 .relicta/
 
+# Roady — version-control spec/plan/policy/state, ignore append-only
+# event log and ephemeral telemetry.
+.roady/events.jsonl
+.roady/usage.json
+
 # OS
 .DS_Store

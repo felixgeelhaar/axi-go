@@ -1,0 +1,86 @@
+{
+  "project_id": "axi-go",
+  "version": 14,
+  "task_states": {
+    "task-[post-1.0]-distributed-saga-semantics": {
+      "status": "blocked",
+      "path": "",
+      "elapsed_minutes": 0
+    },
+    "task-[post-1.0]-evidence-integrity": {
+      "status": "blocked",
+      "path": "",
+      "elapsed_minutes": 0
+    },
+    "task-[post-1.0]-observability-ports": {
+      "status": "blocked",
+      "path": "",
+      "elapsed_minutes": 0
+    },
+    "task-[post-1.0]-streaming-executionresult": {
+      "status": "blocked",
+      "path": "",
+      "elapsed_minutes": 0
+    },
+    "task-adoption-signal": {
+      "status": "pending",
+      "path": "",
+      "elapsed_minutes": 0
+    },
+    "task-api-stability-for-1.0": {
+      "status": "pending",
+      "path": "",
+      "elapsed_minutes": 0
+    },
+    "task-ci-quality-floor": {
+      "status": "done",
+      "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "CI has 7 required gates (fmt, lint, vet, build, race test, coverage, govulncheck). Coverage floor enforced at 60% (ca1ffc9). Nightly fuzz-smoke workflow on toon.Encode, 5min (e1c9262). Current total coverage: 63.3%."
+      ],
+      "started_at": "2026-04-17T22:24:58.670081+02:00",
+      "completed_at": "2026-04-17T22:25:05.619829+02:00",
+      "elapsed_minutes": 0
+    },
+    "task-core-foundation": {
+      "status": "done",
+      "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "DDD kernel shipped: actions, capabilities, plugins, execution session state machine, effect profiles, approval gate, budget + retries + pipeline saga. 37 commits since df0fda9. 60+ tests under -race."
+      ],
+      "started_at": "2026-04-17T22:24:26.823423+02:00",
+      "completed_at": "2026-04-17T22:24:32.963782+02:00",
+      "elapsed_minutes": 0
+    },
+    "task-godoc-completeness": {
+      "status": "pending",
+      "path": "",
+      "elapsed_minutes": 0
+    },
+    "task-persistence-schema-frozen-at-v1": {
+      "status": "done",
+      "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "Schema field on SessionSnapshot with CurrentSessionSchema=\"1\" (9e2fc02). Round-trip tests for TokensUsed, Suggestions, ApprovalDecision, schema version, and legacy-without-schema loading (e56b33b, 9e2fc02)."
+      ],
+      "started_at": "2026-04-17T22:24:41.897879+02:00",
+      "completed_at": "2026-04-17T22:24:53.916165+02:00",
+      "elapsed_minutes": 0
+    },
+    "task-security-posture-for-1.0": {
+      "status": "done",
+      "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "SECURITY.md current. Release workflow signs SBOM with cosign keyless (ef7bd20). CODEOWNERS (c263636). Branch protection on main + code-owner review + 7 required status checks + linear history + no force pushes/deletions, applied via gh api (50a329d). Secret scanning + push protection + private vuln reporting enabled. docs/SECURITY-SETUP.md is the source of truth."
+      ],
+      "started_at": "2026-04-17T22:25:10.339446+02:00",
+      "completed_at": "2026-04-17T22:25:19.062929+02:00",
+      "elapsed_minutes": 0
+    }
+  },
+  "updated_at": "2026-04-17T22:25:40.616962+02:00"
+}
