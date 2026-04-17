@@ -193,6 +193,114 @@ func TestSessionStore_SaveAndGet_Succeeded(t *testing.T) {
 	}
 }
 
+func TestSessionStore_RoundTrip_TokensUsed(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s-tokens", "greet", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkRunning()
+	session.AppendEvidence(domain.EvidenceRecord{Kind: "llm", Source: "model-a", TokensUsed: 42, Timestamp: 100})
+	session.AppendEvidence(domain.EvidenceRecord{Kind: "llm", Source: "model-b", TokensUsed: 58, Timestamp: 200})
+	_ = session.Succeed(domain.ExecutionResult{Data: "ok"})
+
+	if err := store.Save(session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := store.Get("s-tokens")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	ev := got.Evidence()
+	if len(ev) != 2 {
+		t.Fatalf("expected 2 evidence records, got %d", len(ev))
+	}
+	var total int64
+	for _, e := range ev {
+		total += e.TokensUsed
+	}
+	if total != 100 {
+		t.Errorf("TokensUsed round-trip failed: got sum %d, want 100", total)
+	}
+	if ev[0].TokensUsed != 42 || ev[1].TokensUsed != 58 {
+		t.Errorf("per-record TokensUsed lost on round-trip: %v", ev)
+	}
+}
+
+func TestSessionStore_RoundTrip_Suggestions(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s-sugg", "create", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkRunning()
+	_ = session.Succeed(domain.ExecutionResult{
+		Data: map[string]any{"id": "abc"},
+		Suggestions: []domain.Suggestion{
+			{Action: "resource.get", Description: "Retrieve the created resource"},
+			{Action: "resource.list", Description: "List all resources"},
+		},
+	})
+
+	if err := store.Save(session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := store.Get("s-sugg")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	result := got.Result()
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+	if len(result.Suggestions) != 2 {
+		t.Fatalf("expected 2 suggestions, got %d", len(result.Suggestions))
+	}
+	if result.Suggestions[0].Action != "resource.get" {
+		t.Errorf("Suggestions[0].Action = %q, want resource.get", result.Suggestions[0].Action)
+	}
+	if result.Suggestions[0].Description != "Retrieve the created resource" {
+		t.Errorf("Suggestions[0].Description lost on round-trip: %q", result.Suggestions[0].Description)
+	}
+	if result.Suggestions[1].Action != "resource.list" {
+		t.Errorf("Suggestions[1].Action = %q, want resource.list", result.Suggestions[1].Action)
+	}
+}
+
+func TestSessionStore_RoundTrip_ApprovalDecision(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s-approval", "send", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkAwaitingApproval()
+	_ = session.Approve(domain.ApprovalDecision{Principal: "alice@example.com", Rationale: "vetted the request"})
+
+	if err := store.Save(session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := store.Get("s-approval")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	dec := got.ApprovalDecision()
+	if dec == nil {
+		t.Fatal("expected ApprovalDecision, got nil")
+	}
+	if dec.Principal != "alice@example.com" {
+		t.Errorf("Principal = %q, want alice@example.com", dec.Principal)
+	}
+	if dec.Rationale != "vetted the request" {
+		t.Errorf("Rationale lost on round-trip: %q", dec.Rationale)
+	}
+}
+
 func TestSessionStore_SaveAndGet_Failed(t *testing.T) {
 	dir := t.TempDir()
 	store, _ := jsonstore.NewSessionStore(dir)
