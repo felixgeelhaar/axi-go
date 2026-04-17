@@ -168,6 +168,9 @@ result, _ := kernel.Reject(sessionID, "too risky")
 actions := kernel.ListActions()
 caps    := kernel.ListCapabilities()
 session, _ := kernel.GetSession(sessionID)
+
+// Or with pre-computed aggregates (axi.md #4):
+r := kernel.ListActionsResult() // r.Items, r.TotalCount
 ```
 
 ## Safety & Control
@@ -176,11 +179,73 @@ session, _ := kernel.GetSession(sessionID)
 |---------|--------------|
 | **Effect profiles** | `none`, `read-local`, `write-local`, `read-external`, `write-external` |
 | **Approval gate** | `write-external` actions pause at `awaiting_approval` — call `kernel.Approve(...)` |
-| **Execution budgets** | Max duration and max capability invocations per session |
+| **Execution budgets** | Max duration, max capability invocations, and max tokens per session |
 | **Rate limiting** | Pluggable `RateLimiter` checked before each execution |
 | **Output validation** | Results validated against output contracts before `succeeded` |
 | **Idempotency profile** | Actions declare whether they're safe to retry |
 | **Evidence trail** | Append-only `EvidenceRecord`s with timestamps — full audit log |
+
+## Agent-facing output
+
+axi-go draws design cues from [axi.md](https://axi.md/) — a set of principles
+for agent-tool interfaces optimized for token efficiency and discoverability.
+
+### Suggestions (axi.md #9)
+
+Actions can emit next-step hints in their result. The agent reads them and
+avoids guessing what to call next:
+
+```go
+return domain.ExecutionResult{
+    Data:    map[string]any{"id": "abc-123"},
+    Summary: "created resource abc-123",
+    Suggestions: []domain.Suggestion{
+        {Action: "resource.get", Description: "Retrieve the created resource"},
+        {Action: "resource.list", Description: "List all resources"},
+    },
+}, nil, nil
+```
+
+### TOON encoding (axi.md #1)
+
+The `toon` package encodes results in Token-Optimized Object Notation —
+brace-free, quote-free, and ~40% shorter than equivalent JSON on uniform
+arrays:
+
+```go
+import "github.com/felixgeelhaar/axi-go/toon"
+
+out, _ := toon.Encode(map[string]any{
+    "issues": []any{
+        map[string]any{"number": 42, "state": "open", "title": "Fix login bug"},
+        map[string]any{"number": 43, "state": "open", "title": "Add dark mode"},
+    },
+})
+// issues[2]{number,state,title}:
+//   42,open,Fix login bug
+//   43,open,Add dark mode
+```
+
+### Token budget (axi.md #1)
+
+Capabilities report token usage via `EvidenceRecord.TokensUsed`; the kernel
+sums them and fails the session if the budget is exceeded:
+
+```go
+kernel := axi.New().WithBudget(axi.Budget{MaxTokens: 10_000})
+// A session whose evidence sums to more than 10k tokens fails with
+// FailureReason.Code = "BUDGET_EXCEEDED".
+```
+
+### Truncation (axi.md #3)
+
+`axi.Truncate` caps strings and appends a size hint so context windows stay
+bounded without silently dropping data:
+
+```go
+out, truncated := axi.Truncate(longBody, 500)
+// "…first 500 chars… (truncated, 2847 chars total)"
+```
 
 ## Persistence
 
