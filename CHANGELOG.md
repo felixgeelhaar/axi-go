@@ -81,4 +81,14 @@ releases; those are annotated with `BREAKING` below.
   library only.
 - All 40+ new tests pass under `go test -race`. Linter clean.
 
+### License
+
+- **Relicensed from MIT to Apache License 2.0.** Adds an explicit
+  patent grant (§3) and aligns with the dominant license in the
+  adjacent AI-tooling ecosystem (MCP, OpenTelemetry-Go, Kubernetes,
+  containerd). No external contributors had landed at the time of the
+  switch, so no third-party consent was required. Previous MIT-licensed
+  tags remain available under MIT; future releases are Apache 2.0.
+  See [NOTICE](NOTICE).
+
 [Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/df0fda9...HEAD

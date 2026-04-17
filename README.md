@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/felixgeelhaar/axi-go/actions/workflows/ci.yml/badge.svg)](https://github.com/felixgeelhaar/axi-go/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/felixgeelhaar/axi-go)](https://goreportcard.com/report/github.com/felixgeelhaar/axi-go)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go Reference](https://pkg.go.dev/badge/github.com/felixgeelhaar/axi-go.svg)](https://pkg.go.dev/github.com/felixgeelhaar/axi-go)
 
 **Zero external dependencies.** Standard library only.
@@ -378,4 +378,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and [CLAUDE.m
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
