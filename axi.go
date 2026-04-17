@@ -6,7 +6,7 @@
 //
 //	kernel := axi.New().
 //	    WithLogger(logger).
-//	    WithBudget(axi.Budget{MaxInvocations: 100})
+//	    WithBudget(axi.Budget{MaxCapabilityInvocations: 100})
 //
 //	if err := kernel.RegisterPlugin(myPlugin); err != nil {
 //	    return err
@@ -107,8 +107,8 @@ func (k *Kernel) WithLogger(logger domain.Logger) *Kernel {
 	return k
 }
 
-// WithBudget sets the default execution budget (max duration, max invocations).
-// Returns the kernel for chaining.
+// WithBudget sets the default execution budget (max duration, max capability
+// invocations, max retries, max tokens). Returns the kernel for chaining.
 func (k *Kernel) WithBudget(budget Budget) *Kernel {
 	k.execution.SetDefaultBudget(budget)
 	return k

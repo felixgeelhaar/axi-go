@@ -91,4 +91,35 @@ releases; those are annotated with `BREAKING` below.
   tags remain available under MIT; future releases are Apache 2.0.
   See [NOTICE](NOTICE).
 
+### Adoption note for v1.0.0
+
+axi-go ships 1.0 without a public external-adoption claim. The
+[ROADMAP](docs/ROADMAP.md) 1.0 checklist explicitly permits this path
+when the rationale is captured, and the rationale is:
+
+1. **The stability contract stands on its own.** SemVer, a written
+   deprecation policy, a frozen persistence schema, and an audited
+   exported surface give downstream users the guarantees they need to
+   build on the library. None of those depend on a public reference
+   adopter.
+2. **Zero external dependencies.** axi-go uses only the Go standard
+   library. Adoption signals matter most as a proxy for "does this
+   library survive contact with real systems and real upstream churn" —
+   a question that applies less sharply to a zero-dependency kernel.
+3. **Shape is validated by design constraint, not by telemetry.** The
+   API was shaped against the axi.md principles and the reliability
+   scenarios in Issue #9 (partial-state pipelines, saga-lite
+   compensation, idempotency-aware retries). These are concrete
+   stress tests of the surface, not a stand-in for adoption but a
+   different kind of evidence.
+4. **Shipping enables adoption it cannot precede.** Teams evaluating a
+   kernel for production use reasonably wait for a 1.0 tag. Deferring
+   1.0 until such teams adopt us creates a deadlock the spec is
+   designed to break.
+
+The library will not retroactively promote any specific adopter into a
+"reference user" marketing claim. When external production users do
+adopt axi-go, that will be reflected in future release notes or README
+content, but 1.0 does not gate on it.
+
 [Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/df0fda9...HEAD

@@ -25,13 +25,17 @@ source-level breakage.
 
 To reach 1.0, axi-go must meet all of:
 
-- [ ] **API stability:** every exported type, function, and method in the
+- [x] **API stability:** every exported type, function, and method in the
       `axi`, `domain`, `application`, `inmemory`, `jsonstore`, and `toon`
       packages is either frozen for 1.x or explicitly marked
-      `// Deprecated:` with a defined removal schedule.
-- [ ] **Godoc completeness:** every exported name carries a narrative
+      `// Deprecated:` with a defined removal schedule. As of the 1.0
+      audit, no names are marked `// Deprecated:` — the entire exported
+      surface is frozen for 1.x.
+- [x] **Godoc completeness:** every exported name carries a narrative
       doc comment, and at least one `Example*` function exists for every
-      top-level API surface (Kernel methods, `toon.Encode`, `axi.Truncate`).
+      top-level API surface (`Kernel.Execute`, `Kernel.Help`,
+      `Kernel.ListActionSummaries`, `toon.Encode`, `axi.Truncate`,
+      `domain.Pipeline`).
 - [ ] **Persistence schema frozen:** `SessionSnapshot.Schema == "1"` is
       treated as the 1.x persistence format. Future incompatible changes
       bump the schema and ship with a documented migration.
@@ -40,9 +44,10 @@ To reach 1.0, axi-go must meet all of:
 - [ ] **Security posture:** SECURITY.md reflects current practice, release
       workflow signs artifacts with cosign keyless, SBOM attached to every
       GitHub Release.
-- [ ] **Adoption signal:** at least one production use case outside the
-      author's own systems, or an explicit decision to ship 1.0 without
-      one (with rationale in the release notes).
+- [x] **Adoption signal:** the rationale path was taken. v1.0.0 ships
+      without a public external-adoption claim; the decision and
+      reasoning are captured in the "Adoption note for v1.0.0" section
+      of [CHANGELOG.md](../CHANGELOG.md).
 
 When all six are checked, the next tag is `v1.0.0`.
 

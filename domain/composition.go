@@ -57,7 +57,6 @@ func NewCompositionService(
 	}
 }
 
-// RegisterPlugin accepts a Plugin, calls Contribute(), and registers the result.
 // RegisterBundle atomically registers a plugin's contribution and its executor
 // implementations. This is the preferred registration method as it validates
 // that all executor refs have matching implementations before persisting anything.

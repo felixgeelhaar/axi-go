@@ -45,12 +45,20 @@ func (c *CapabilityDefinition) IsBound() bool {
 	return c.executionBinding != ""
 }
 
-// Accessors.
+// Name returns the unique capability name.
+func (c *CapabilityDefinition) Name() CapabilityName { return c.name }
 
-func (c *CapabilityDefinition) Name() CapabilityName                    { return c.name }
-func (c *CapabilityDefinition) Description() string                     { return c.description }
-func (c *CapabilityDefinition) InputContract() Contract                 { return c.inputContract }
-func (c *CapabilityDefinition) OutputContract() Contract                { return c.outputContract }
+// Description returns the human-readable description of the capability.
+func (c *CapabilityDefinition) Description() string { return c.description }
+
+// InputContract returns the input contract declared by this capability.
+func (c *CapabilityDefinition) InputContract() Contract { return c.inputContract }
+
+// OutputContract returns the output contract declared by this capability.
+func (c *CapabilityDefinition) OutputContract() Contract { return c.outputContract }
+
+// ExecutionBinding returns the executor reference bound to this capability,
+// or the empty ref if BindExecutor has not yet been called.
 func (c *CapabilityDefinition) ExecutionBinding() CapabilityExecutorRef { return c.executionBinding }
 
 // CapabilitySummary is a minimal, discovery-oriented projection of

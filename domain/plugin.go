@@ -87,17 +87,21 @@ func (p *PluginContribution) Activate() error {
 	return nil
 }
 
-// Accessors.
+// PluginID returns the identifier of the contributing plugin.
+func (p *PluginContribution) PluginID() PluginID { return p.pluginID }
 
-func (p *PluginContribution) PluginID() PluginID         { return p.pluginID }
+// Status returns the current lifecycle status of this contribution.
 func (p *PluginContribution) Status() ContributionStatus { return p.status }
 
+// Actions returns a defensive copy of the actions contributed by this plugin.
 func (p *PluginContribution) Actions() []*ActionDefinition {
 	out := make([]*ActionDefinition, len(p.actions))
 	copy(out, p.actions)
 	return out
 }
 
+// Capabilities returns a defensive copy of the capabilities contributed
+// by this plugin.
 func (p *PluginContribution) Capabilities() []*CapabilityDefinition {
 	out := make([]*CapabilityDefinition, len(p.capabilities))
 	copy(out, p.capabilities)

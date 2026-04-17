@@ -1,6 +1,6 @@
 {
   "project_id": "axi-go",
-  "version": 14,
+  "version": 20,
   "task_states": {
     "task-[post-1.0]-distributed-saga-semantics": {
       "status": "blocked",
@@ -23,14 +23,26 @@
       "elapsed_minutes": 0
     },
     "task-adoption-signal": {
-      "status": "pending",
+      "status": "done",
       "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "Rationale path taken per ROADMAP. Added \"Adoption note for v1.0.0\" section to CHANGELOG capturing four-point rationale (stability contract stands alone; zero deps; shape validated by design constraint + Issue #9 scenarios; shipping enables adoption it cannot precede). Checked off in ROADMAP."
+      ],
+      "started_at": "2026-04-18T01:18:15.389783+02:00",
+      "completed_at": "2026-04-18T01:19:01.701372+02:00",
       "elapsed_minutes": 0
     },
     "task-api-stability-for-1.0": {
-      "status": "pending",
+      "status": "done",
       "path": "",
-      "elapsed_minutes": 0
+      "owner": "ai-agent",
+      "evidence": [
+        "Audited 6 packages (axi, domain, application, inmemory, jsonstore, toon). No names require deprecation — entire surface frozen for 1.x. Fixed stale MaxInvocations doc example in axi.go. Checked off API stability in ROADMAP.md."
+      ],
+      "started_at": "2026-04-18T01:07:31.824008+02:00",
+      "completed_at": "2026-04-18T01:09:22.318557+02:00",
+      "elapsed_minutes": 1
     },
     "task-ci-quality-floor": {
       "status": "done",
@@ -55,9 +67,15 @@
       "elapsed_minutes": 0
     },
     "task-godoc-completeness": {
-      "status": "pending",
+      "status": "done",
       "path": "",
-      "elapsed_minutes": 0
+      "owner": "ai-agent",
+      "evidence": [
+        "Added narrative doc comments to domain value types, accessors, and key aggregates. Fixed EffectLevel doc mixup and RegisterBundle stale-prefix. Added ExampleEncode (+ tabular variant) in toon package and ExamplePipeline in domain package. go test / go vet / golangci-lint all pass."
+      ],
+      "started_at": "2026-04-18T01:09:24.140636+02:00",
+      "completed_at": "2026-04-18T01:18:13.621081+02:00",
+      "elapsed_minutes": 8
     },
     "task-persistence-schema-frozen-at-v1": {
       "status": "done",
@@ -82,5 +100,5 @@
       "elapsed_minutes": 0
     }
   },
-  "updated_at": "2026-04-17T22:25:40.616962+02:00"
+  "updated_at": "2026-04-18T01:19:01.701373+02:00"
 }

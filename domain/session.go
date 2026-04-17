@@ -166,36 +166,50 @@ func (s *ExecutionSession) transitionTo(target ExecutionStatus) error {
 	return nil
 }
 
-// Accessors — all read-locked for concurrent safety.
+// ID returns the session identifier (set at construction; immutable).
+func (s *ExecutionSession) ID() ExecutionSessionID { return s.id }
 
-func (s *ExecutionSession) ID() ExecutionSessionID { return s.id }         // immutable
-func (s *ExecutionSession) ActionName() ActionName { return s.actionName } // immutable
-func (s *ExecutionSession) Input() any             { return s.input }      // immutable
+// ActionName returns the name of the action this session is executing
+// (set at construction; immutable).
+func (s *ExecutionSession) ActionName() ActionName { return s.actionName }
 
+// Input returns the raw input supplied to the action (immutable).
+func (s *ExecutionSession) Input() any { return s.input }
+
+// Status returns the current execution status under a read lock,
+// safe for concurrent callers.
 func (s *ExecutionSession) Status() ExecutionStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.status
 }
 
+// RequiresApproval reports whether this session paused (or will pause) at
+// AwaitingApproval — true for actions with write-external effect level.
 func (s *ExecutionSession) RequiresApproval() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.requiresApproval
 }
 
+// Result returns the execution result if the session has Succeeded,
+// otherwise nil. Callers should not mutate the returned value.
 func (s *ExecutionSession) Result() *ExecutionResult {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.result
 }
 
+// Failure returns the failure reason if the session has Failed or been
+// Rejected, otherwise nil.
 func (s *ExecutionSession) Failure() *FailureReason {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.failure
 }
 
+// Evidence returns a defensive copy of the append-only evidence trail
+// collected during execution.
 func (s *ExecutionSession) Evidence() []EvidenceRecord {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -204,12 +218,16 @@ func (s *ExecutionSession) Evidence() []EvidenceRecord {
 	return out
 }
 
+// ApprovalDecision returns the recorded approval/rejection decision,
+// or nil if the session has not transitioned through AwaitingApproval.
 func (s *ExecutionSession) ApprovalDecision() *ApprovalDecision {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.approvalDecision
 }
 
+// ResolvedCapabilities returns a defensive copy of the capabilities
+// resolved for this session by the CapabilityResolutionService.
 func (s *ExecutionSession) ResolvedCapabilities() []CapabilityName {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

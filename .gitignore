@@ -18,8 +18,9 @@
 coverage.out
 coverage.html
 
-# Security scanning
-.nox/
+# Security scanning — track suppression baseline, ignore scan outputs
+.nox/*
+!.nox/baseline.json
 findings.json
 
 # IDE

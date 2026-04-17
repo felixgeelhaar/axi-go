@@ -57,20 +57,35 @@ func (a *ActionDefinition) IsBound() bool {
 	return a.executionBinding != ""
 }
 
-// Accessors.
+// Name returns the unique action name.
+func (a *ActionDefinition) Name() ActionName { return a.name }
 
-func (a *ActionDefinition) Name() ActionName         { return a.name }
-func (a *ActionDefinition) Description() string      { return a.description }
-func (a *ActionDefinition) InputContract() Contract  { return a.inputContract }
+// Description returns the human-readable description of the action.
+func (a *ActionDefinition) Description() string { return a.description }
+
+// InputContract returns the input contract declared by this action.
+func (a *ActionDefinition) InputContract() Contract { return a.inputContract }
+
+// OutputContract returns the output contract declared by this action.
 func (a *ActionDefinition) OutputContract() Contract { return a.outputContract }
+
+// Requirements returns a defensive copy of the capability requirements
+// this action depends on.
 func (a *ActionDefinition) Requirements() RequirementSet {
 	out := make(RequirementSet, len(a.requirements))
 	copy(out, a.requirements)
 	return out
 }
-func (a *ActionDefinition) EffectProfile() EffectProfile           { return a.effectProfile }
+
+// EffectProfile returns the side-effect classification for this action.
+func (a *ActionDefinition) EffectProfile() EffectProfile { return a.effectProfile }
+
+// IdempotencyProfile returns the idempotency declaration for this action.
 func (a *ActionDefinition) IdempotencyProfile() IdempotencyProfile { return a.idempotencyProfile }
-func (a *ActionDefinition) ExecutionBinding() ActionExecutorRef    { return a.executionBinding }
+
+// ExecutionBinding returns the executor reference bound to this action,
+// or the empty ref if BindExecutor has not yet been called.
+func (a *ActionDefinition) ExecutionBinding() ActionExecutorRef { return a.executionBinding }
 
 // ActionSummary is a minimal, discovery-oriented projection of ActionDefinition.
 // It carries only the fields an agent typically needs to choose between tools,
