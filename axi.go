@@ -197,13 +197,15 @@ func (k *Kernel) ExecuteAsync(ctx context.Context, inv Invocation) (*Result, err
 }
 
 // Approve approves a session in AwaitingApproval state and resumes execution.
-func (k *Kernel) Approve(ctx context.Context, sessionID string) (*Result, error) {
-	return k.execute.ApproveSession(ctx, domain.ExecutionSessionID(sessionID))
+// The decision must include a non-empty Principal identifying who approved.
+func (k *Kernel) Approve(ctx context.Context, sessionID string, decision domain.ApprovalDecision) (*Result, error) {
+	return k.execute.ApproveSession(ctx, domain.ExecutionSessionID(sessionID), decision)
 }
 
 // Reject rejects a session in AwaitingApproval state with a reason.
-func (k *Kernel) Reject(sessionID, reason string) (*Result, error) {
-	return k.execute.RejectSession(domain.ExecutionSessionID(sessionID), reason)
+// The decision must include a non-empty Principal identifying who rejected.
+func (k *Kernel) Reject(sessionID, reason string, decision domain.ApprovalDecision) (*Result, error) {
+	return k.execute.RejectSession(domain.ExecutionSessionID(sessionID), reason, decision)
 }
 
 // GetSession returns the current state of an execution session by ID.

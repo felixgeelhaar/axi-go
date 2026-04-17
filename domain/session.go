@@ -32,8 +32,9 @@ type ExecutionSession struct {
 	resolvedCapabilities []CapabilityName
 	evidence             []EvidenceRecord
 
-	result  *ExecutionResult
-	failure *FailureReason
+	result           *ExecutionResult
+	failure          *FailureReason
+	approvalDecision *ApprovalDecision
 }
 
 // NewExecutionSession creates a new session in Pending status.
@@ -87,23 +88,33 @@ func (s *ExecutionSession) MarkAwaitingApproval() error {
 }
 
 // Approve transitions AwaitingApproval → Running.
-func (s *ExecutionSession) Approve() error {
+// The decision must include a non-empty Principal identifying who approved.
+func (s *ExecutionSession) Approve(decision ApprovalDecision) error {
+	if decision.Principal == "" {
+		return errors.New("approval decision requires a non-empty principal")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.status != StatusAwaitingApproval {
 		return fmt.Errorf("cannot approve session in %s status", s.status)
 	}
+	s.approvalDecision = &decision
 	s.status = StatusRunning
 	return nil
 }
 
 // Reject transitions AwaitingApproval → Rejected with a reason.
-func (s *ExecutionSession) Reject(reason FailureReason) error {
+// The decision must include a non-empty Principal identifying who rejected.
+func (s *ExecutionSession) Reject(reason FailureReason, decision ApprovalDecision) error {
+	if decision.Principal == "" {
+		return errors.New("approval decision requires a non-empty principal")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.status != StatusAwaitingApproval {
 		return fmt.Errorf("cannot reject session in %s status", s.status)
 	}
+	s.approvalDecision = &decision
 	s.status = StatusRejected
 	s.failure = &reason
 	return nil
@@ -191,6 +202,12 @@ func (s *ExecutionSession) Evidence() []EvidenceRecord {
 	out := make([]EvidenceRecord, len(s.evidence))
 	copy(out, s.evidence)
 	return out
+}
+
+func (s *ExecutionSession) ApprovalDecision() *ApprovalDecision {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.approvalDecision
 }
 
 func (s *ExecutionSession) ResolvedCapabilities() []CapabilityName {

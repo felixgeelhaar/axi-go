@@ -118,7 +118,7 @@ func TestApprovalGate_WriteExternal(t *testing.T) {
 	}
 
 	// Approve and resume.
-	if err := session.Approve(); err != nil {
+	if err := session.Approve(domain.ApprovalDecision{Principal: "test-user"}); err != nil {
 		t.Fatalf("Approve: %v", err)
 	}
 	if err := execSvc.Resume(context.Background(), session); err != nil {
@@ -158,7 +158,7 @@ func TestSession_Reject(t *testing.T) {
 	_ = session.MarkResolved(nil)
 	_ = session.MarkAwaitingApproval()
 
-	err := session.Reject(domain.FailureReason{Code: "REJECTED", Message: "too risky"})
+	err := session.Reject(domain.FailureReason{Code: "REJECTED", Message: "too risky"}, domain.ApprovalDecision{Principal: "test-user", Rationale: "too risky"})
 	if err != nil {
 		t.Fatalf("Reject: %v", err)
 	}

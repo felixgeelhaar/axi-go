@@ -50,15 +50,22 @@ type PluginSnapshot struct {
 
 // SessionSnapshot is the serializable form of ExecutionSession.
 type SessionSnapshot struct {
-	ID                   string             `json:"id"`
-	ActionName           string             `json:"action_name"`
-	Input                any                `json:"input"`
-	Status               string             `json:"status"`
-	RequiresApproval     bool               `json:"requires_approval"`
-	ResolvedCapabilities []string           `json:"resolved_capabilities"`
-	Evidence             []EvidenceSnapshot `json:"evidence"`
-	Result               *ResultSnapshot    `json:"result,omitempty"`
-	Failure              *FailureSnapshot   `json:"failure,omitempty"`
+	ID                   string                    `json:"id"`
+	ActionName           string                    `json:"action_name"`
+	Input                any                       `json:"input"`
+	Status               string                    `json:"status"`
+	RequiresApproval     bool                      `json:"requires_approval"`
+	ResolvedCapabilities []string                  `json:"resolved_capabilities"`
+	Evidence             []EvidenceSnapshot        `json:"evidence"`
+	Result               *ResultSnapshot           `json:"result,omitempty"`
+	Failure              *FailureSnapshot          `json:"failure,omitempty"`
+	ApprovalDecision     *ApprovalDecisionSnapshot `json:"approval_decision,omitempty"`
+}
+
+// ApprovalDecisionSnapshot is the serializable form of ApprovalDecision.
+type ApprovalDecisionSnapshot struct {
+	Principal string `json:"principal"`
+	Rationale string `json:"rationale,omitempty"`
 }
 
 // EvidenceSnapshot is the serializable form of EvidenceRecord.
@@ -227,6 +234,9 @@ func SessionFromSnapshot(s SessionSnapshot) (*ExecutionSession, error) {
 	if s.Failure != nil {
 		session.failure = &FailureReason{Code: s.Failure.Code, Message: s.Failure.Message}
 	}
+	if s.ApprovalDecision != nil {
+		session.approvalDecision = &ApprovalDecision{Principal: s.ApprovalDecision.Principal, Rationale: s.ApprovalDecision.Rationale}
+	}
 	return session, nil
 }
 
@@ -257,6 +267,9 @@ func (s *ExecutionSession) ToSnapshot() SessionSnapshot {
 	}
 	if s.failure != nil {
 		snap.Failure = &FailureSnapshot{Code: s.failure.Code, Message: s.failure.Message}
+	}
+	if s.approvalDecision != nil {
+		snap.ApprovalDecision = &ApprovalDecisionSnapshot{Principal: s.approvalDecision.Principal, Rationale: s.approvalDecision.Rationale}
 	}
 	return snap
 }

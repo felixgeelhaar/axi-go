@@ -33,6 +33,7 @@ type ExecuteActionOutput struct {
 	Result           *domain.ExecutionResult
 	Failure          *domain.FailureReason
 	Evidence         []domain.EvidenceRecord
+	ApprovalDecision *domain.ApprovalDecision
 }
 
 // Execute runs an action. If the action requires approval (external effects),
@@ -94,13 +95,13 @@ func (uc *ExecuteActionUseCase) ExecuteAsync(ctx context.Context, input ExecuteA
 }
 
 // ApproveSession approves a session awaiting approval and resumes execution.
-func (uc *ExecuteActionUseCase) ApproveSession(ctx context.Context, id domain.ExecutionSessionID) (*ExecuteActionOutput, error) {
+func (uc *ExecuteActionUseCase) ApproveSession(ctx context.Context, id domain.ExecutionSessionID, decision domain.ApprovalDecision) (*ExecuteActionOutput, error) {
 	session, err := uc.SessionRepo.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := session.Approve(); err != nil {
+	if err := session.Approve(decision); err != nil {
 		return nil, &domain.ErrValidation{Message: err.Error()}
 	}
 
@@ -117,13 +118,13 @@ func (uc *ExecuteActionUseCase) ApproveSession(ctx context.Context, id domain.Ex
 }
 
 // RejectSession rejects a session awaiting approval.
-func (uc *ExecuteActionUseCase) RejectSession(id domain.ExecutionSessionID, reason string) (*ExecuteActionOutput, error) {
+func (uc *ExecuteActionUseCase) RejectSession(id domain.ExecutionSessionID, reason string, decision domain.ApprovalDecision) (*ExecuteActionOutput, error) {
 	session, err := uc.SessionRepo.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := session.Reject(domain.FailureReason{Code: "REJECTED", Message: reason}); err != nil {
+	if err := session.Reject(domain.FailureReason{Code: "REJECTED", Message: reason}, decision); err != nil {
 		return nil, &domain.ErrValidation{Message: err.Error()}
 	}
 
@@ -142,5 +143,6 @@ func outputFromSession(session *domain.ExecutionSession) *ExecuteActionOutput {
 		Result:           session.Result(),
 		Failure:          session.Failure(),
 		Evidence:         session.Evidence(),
+		ApprovalDecision: session.ApprovalDecision(),
 	}
 }

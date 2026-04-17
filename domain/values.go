@@ -135,6 +135,12 @@ type IdempotencyProfile struct {
 
 // Execution value objects.
 
+// ApprovalDecision records who approved or rejected, and why.
+type ApprovalDecision struct {
+	Principal string // who approved (user ID, service account, etc.)
+	Rationale string // why — free text
+}
+
 type ExecutionResult struct {
 	Data        any
 	Summary     string

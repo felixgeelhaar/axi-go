@@ -149,7 +149,7 @@ func TestKernel_ApprovalFlow(t *testing.T) {
 		t.Fatalf("expected awaiting_approval, got %s", result.Status)
 	}
 
-	approved, err := kernel.Approve(context.Background(), string(result.SessionID))
+	approved, err := kernel.Approve(context.Background(), string(result.SessionID), domain.ApprovalDecision{Principal: "test-user"})
 	if err != nil {
 		t.Fatalf("approve: %v", err)
 	}
