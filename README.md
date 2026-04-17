@@ -188,6 +188,7 @@ text, _ := kernel.Help("greet")
 | **Output validation** | Results validated against output contracts before `succeeded` |
 | **Idempotency profile** | Actions declare whether they're safe to retry |
 | **Evidence trail** | Append-only `EvidenceRecord`s with timestamps — full audit log |
+| **Pipeline saga** | Mid-pipeline failures return a `*PipelineFailure` with partial outputs and run any `PipelineStep.Compensate` hooks in reverse order |
 
 ## Agent-facing output
 
