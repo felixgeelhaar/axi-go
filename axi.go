@@ -227,3 +227,16 @@ func (k *Kernel) ListCapabilities() []*domain.CapabilityDefinition {
 func (k *Kernel) GetAction(name string) (*domain.ActionDefinition, error) {
 	return k.actionRepo.GetByName(domain.ActionName(name))
 }
+
+// Help returns a human-readable description of the named action or capability
+// (actions are looked up first). Aligned with axi.md principle #10 — callers
+// fall back to Help when contextual suggestions aren't enough.
+func (k *Kernel) Help(name string) (string, error) {
+	if a, err := k.actionRepo.GetByName(domain.ActionName(name)); err == nil {
+		return a.Help(), nil
+	}
+	if c, err := k.capRepo.GetByName(domain.CapabilityName(name)); err == nil {
+		return c.Help(), nil
+	}
+	return "", &domain.ErrNotFound{Entity: "action or capability", ID: name}
+}

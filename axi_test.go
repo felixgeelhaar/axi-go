@@ -275,6 +275,27 @@ func (p *suggestingPlugin) Contribute() (*domain.PluginContribution, error) {
 		[]*domain.ActionDefinition{action}, nil)
 }
 
+func TestKernel_Help(t *testing.T) {
+	kernel := axi.New()
+	kernel.RegisterActionExecutor("exec.echo", &echoExecutor{})
+	if err := kernel.RegisterPlugin(&testPlugin{}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	help, err := kernel.Help("echo")
+	if err != nil {
+		t.Fatalf("Help: %v", err)
+	}
+	if !strings.Contains(help, "echo — Echoes input") {
+		t.Errorf("expected description in help, got:\n%s", help)
+	}
+
+	_, err = kernel.Help("does.not.exist")
+	if err == nil {
+		t.Error("expected error for unknown name")
+	}
+}
+
 func TestKernel_ExecutionSuggestions(t *testing.T) {
 	kernel := axi.New()
 	kernel.RegisterActionExecutor("exec.resource.create", &suggestingExecutor{})
