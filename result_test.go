@@ -96,3 +96,55 @@ func TestListCapabilitiesResult_Empty(t *testing.T) {
 		t.Error("Items should be non-nil even when empty")
 	}
 }
+
+func TestListActionSummaries(t *testing.T) {
+	kernel := axi.New()
+	kernel.RegisterActionExecutor("exec.echo", &echoExecutor{})
+	if err := kernel.RegisterPlugin(&testPlugin{}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	summaries := kernel.ListActionSummaries()
+	if summaries.TotalCount != 1 {
+		t.Fatalf("TotalCount = %d, want 1", summaries.TotalCount)
+	}
+	s := summaries.Items[0]
+	if s.Name != "echo" {
+		t.Errorf("Name = %s", s.Name)
+	}
+	if s.Description != "Echoes input" {
+		t.Errorf("Description = %s", s.Description)
+	}
+	if !s.Idempotent {
+		t.Error("expected Idempotent=true")
+	}
+}
+
+func TestListCapabilitySummaries_Empty(t *testing.T) {
+	kernel := axi.New()
+	summaries := kernel.ListCapabilitySummaries()
+	if summaries.TotalCount != 0 {
+		t.Errorf("TotalCount = %d, want 0", summaries.TotalCount)
+	}
+	if summaries.Items == nil {
+		t.Error("Items should be non-nil even when empty")
+	}
+}
+
+func TestListResult_IsEmpty(t *testing.T) {
+	kernel := axi.New()
+
+	// Empty kernel.
+	r := kernel.ListActionsResult()
+	if !r.IsEmpty() {
+		t.Error("expected IsEmpty=true for empty kernel")
+	}
+
+	// Non-empty kernel.
+	kernel.RegisterActionExecutor("exec.echo", &echoExecutor{})
+	_ = kernel.RegisterPlugin(&testPlugin{})
+	r = kernel.ListActionsResult()
+	if r.IsEmpty() {
+		t.Error("expected IsEmpty=false after registering an action")
+	}
+}

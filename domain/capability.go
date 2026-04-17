@@ -52,3 +52,18 @@ func (c *CapabilityDefinition) Description() string                     { return
 func (c *CapabilityDefinition) InputContract() Contract                 { return c.inputContract }
 func (c *CapabilityDefinition) OutputContract() Contract                { return c.outputContract }
 func (c *CapabilityDefinition) ExecutionBinding() CapabilityExecutorRef { return c.executionBinding }
+
+// CapabilitySummary is a minimal, discovery-oriented projection of
+// CapabilityDefinition, aligned with axi.md principle #2.
+type CapabilitySummary struct {
+	Name        string
+	Description string
+}
+
+// Summary returns the discovery-oriented projection of this capability.
+func (c *CapabilityDefinition) Summary() CapabilitySummary {
+	return CapabilitySummary{
+		Name:        string(c.name),
+		Description: c.description,
+	}
+}

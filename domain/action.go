@@ -71,3 +71,23 @@ func (a *ActionDefinition) Requirements() RequirementSet {
 func (a *ActionDefinition) EffectProfile() EffectProfile           { return a.effectProfile }
 func (a *ActionDefinition) IdempotencyProfile() IdempotencyProfile { return a.idempotencyProfile }
 func (a *ActionDefinition) ExecutionBinding() ActionExecutorRef    { return a.executionBinding }
+
+// ActionSummary is a minimal, discovery-oriented projection of ActionDefinition.
+// It carries only the fields an agent typically needs to choose between tools,
+// aligned with axi.md principle #2 (minimal default schemas).
+type ActionSummary struct {
+	Name        string
+	Description string
+	Effect      EffectLevel
+	Idempotent  bool
+}
+
+// Summary returns the discovery-oriented projection of this action.
+func (a *ActionDefinition) Summary() ActionSummary {
+	return ActionSummary{
+		Name:        string(a.name),
+		Description: a.description,
+		Effect:      a.effectProfile.Level,
+		Idempotent:  a.idempotencyProfile.IsIdempotent,
+	}
+}
