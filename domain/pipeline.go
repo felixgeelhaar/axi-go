@@ -26,19 +26,65 @@ type Pipeline struct {
 	Steps []PipelineStep
 }
 
+// CompensatedStep records a single compensation attempt triggered when a
+// later pipeline step failed. Outcome is nil on success.
+type CompensatedStep struct {
+	StepIndex  int
+	Capability CapabilityName
+	Output     any
+	Outcome    error
+}
+
 // PipelineFailure is returned by Pipeline.ExecuteWithInvoker when a step fails
 // mid-sequence. It carries the outputs of steps that succeeded so the caller
 // can inspect partial state — e.g., to resume from the failed step or record
 // what was already committed before the error. When steps define a Compensate
-// hook, any errors raised during compensation are surfaced via
-// CompensationErrors without overriding the primary Cause.
+// hook, Compensated records each compensation attempt in reverse order and
+// any errors raised during compensation are surfaced via CompensationErrors
+// without overriding the primary Cause.
 //
 // Aligned with Issue #9 phases 2 (partial state) and 3 (saga-lite).
 type PipelineFailure struct {
-	FailedStep         int     // zero-based index of the step that errored
-	CompletedOutput    []any   // outputs of steps [0, FailedStep), post-Transform
-	Cause              error   // the underlying error from the failed step
-	CompensationErrors []error // best-effort compensation failures, reverse order
+	FailedStep         int               // zero-based index of the step that errored
+	CompletedOutput    []any             // outputs of steps [0, FailedStep), post-Transform
+	Cause              error             // the underlying error from the failed step
+	CompensationErrors []error           // best-effort compensation failures, reverse order
+	Compensated        []CompensatedStep // one entry per Compensate hook actually invoked, reverse order
+}
+
+// Evidence converts the failure (including all compensation attempts) into
+// EvidenceRecord entries an action executor can return on the session's
+// evidence trail. Keeps the saga visible in the audit log.
+func (e *PipelineFailure) Evidence() []EvidenceRecord {
+	records := make([]EvidenceRecord, 0, 1+len(e.Compensated))
+	records = append(records, EvidenceRecord{
+		Kind:   "pipeline.failure",
+		Source: "pipeline",
+		Value: map[string]any{
+			"failed_step":      e.FailedStep,
+			"completed_steps":  len(e.CompletedOutput),
+			"cause":            e.Cause.Error(),
+			"compensated":      len(e.Compensated),
+			"compensation_err": len(e.CompensationErrors),
+		},
+	})
+	for _, cs := range e.Compensated {
+		entry := map[string]any{
+			"step":       cs.StepIndex,
+			"capability": string(cs.Capability),
+		}
+		if cs.Outcome != nil {
+			entry["error"] = cs.Outcome.Error()
+		} else {
+			entry["status"] = "ok"
+		}
+		records = append(records, EvidenceRecord{
+			Kind:   "pipeline.compensation",
+			Source: string(cs.Capability),
+			Value:  entry,
+		})
+	}
+	return records
 }
 
 func (e *PipelineFailure) Error() string {
@@ -91,7 +137,8 @@ func (p *Pipeline) ExecuteWithInvoker(ctx context.Context, input any, invoker Ca
 
 // compensate invokes Compensate on previously completed steps in reverse order.
 // Errors are collected on the PipelineFailure but do not abort compensation of
-// earlier steps. Context cancellation stops the walk.
+// earlier steps. Context cancellation stops the walk. Each invocation is
+// recorded in failure.Compensated so the audit trail sees the saga.
 func (p *Pipeline) compensate(ctx context.Context, completed []any, failure *PipelineFailure) {
 	for i := len(completed) - 1; i >= 0; i-- {
 		if ctx.Err() != nil {
@@ -102,9 +149,16 @@ func (p *Pipeline) compensate(ctx context.Context, completed []any, failure *Pip
 		if step.Compensate == nil {
 			continue
 		}
-		if err := step.Compensate(ctx, completed[i]); err != nil {
+		outcome := step.Compensate(ctx, completed[i])
+		failure.Compensated = append(failure.Compensated, CompensatedStep{
+			StepIndex:  i,
+			Capability: step.Capability,
+			Output:     completed[i],
+			Outcome:    outcome,
+		})
+		if outcome != nil {
 			failure.CompensationErrors = append(failure.CompensationErrors,
-				fmt.Errorf("compensate step %d (%s): %w", i, step.Capability, err))
+				fmt.Errorf("compensate step %d (%s): %w", i, step.Capability, outcome))
 		}
 	}
 }

@@ -234,6 +234,58 @@ func TestPipeline_CompensationSkipsStepsWithoutHook(t *testing.T) {
 	}
 }
 
+func TestPipelineFailure_EvidenceCapturesSaga(t *testing.T) {
+	inv := &recordingInvoker{executors: map[domain.CapabilityName]func(any) (any, error){
+		"a":    func(any) (any, error) { return "A", nil },
+		"b":    func(any) (any, error) { return "B", nil },
+		"boom": func(any) (any, error) { return errors.New("root cause"), errors.New("root cause") },
+	}}
+	inv.executors["boom"] = func(any) (any, error) { return nil, errors.New("root cause") }
+
+	p := &domain.Pipeline{Steps: []domain.PipelineStep{
+		{Capability: "a", Compensate: func(context.Context, any) error { return nil }},
+		{Capability: "b", Compensate: func(context.Context, any) error { return errors.New("undo-b failed") }},
+		{Capability: "boom"},
+	}}
+
+	_, err := p.ExecuteWithInvoker(context.Background(), nil, inv)
+	var pf *domain.PipelineFailure
+	if !errors.As(err, &pf) {
+		t.Fatalf("expected *PipelineFailure, got %T", err)
+	}
+
+	records := pf.Evidence()
+	if len(records) != 3 { // 1 failure + 2 compensation attempts
+		t.Fatalf("expected 3 evidence records, got %d: %+v", len(records), records)
+	}
+	if records[0].Kind != "pipeline.failure" {
+		t.Errorf("records[0].Kind = %q, want pipeline.failure", records[0].Kind)
+	}
+	failMeta := records[0].Value.(map[string]any)
+	if failMeta["failed_step"] != 2 {
+		t.Errorf("failed_step = %v, want 2", failMeta["failed_step"])
+	}
+	if failMeta["compensated"] != 2 {
+		t.Errorf("compensated = %v, want 2", failMeta["compensated"])
+	}
+
+	// Reverse order: b first, then a.
+	if records[1].Source != "b" || records[1].Kind != "pipeline.compensation" {
+		t.Errorf("records[1] = %+v, want b/pipeline.compensation", records[1])
+	}
+	bMeta := records[1].Value.(map[string]any)
+	if bMeta["error"] != "undo-b failed" {
+		t.Errorf("b error = %v, want 'undo-b failed'", bMeta["error"])
+	}
+	if records[2].Source != "a" {
+		t.Errorf("records[2].Source = %q, want a", records[2].Source)
+	}
+	aMeta := records[2].Value.(map[string]any)
+	if aMeta["status"] != "ok" {
+		t.Errorf("a status = %v, want ok", aMeta["status"])
+	}
+}
+
 func TestPipeline_NoCompensationOnSuccess(t *testing.T) {
 	called := false
 	p := &domain.Pipeline{Steps: []domain.PipelineStep{
