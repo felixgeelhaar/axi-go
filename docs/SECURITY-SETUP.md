@@ -9,28 +9,35 @@ each setting is live; the file is the source of truth for review.
 
 ## Branch protection — `main`
 
-Settings → Branches → Branch protection rules → `main`:
+Applied via `gh api` on 2026-04-17. Current state:
 
-- [ ] **Require a pull request before merging**
-  - [ ] Required approvals: **1**
-  - [ ] Dismiss stale pull request approvals when new commits are pushed
-  - [ ] Require review from **Code Owners** (enforces `.github/CODEOWNERS`)
-- [ ] **Require status checks to pass before merging**
-  - [ ] Require branches to be up to date before merging
+- [x] **Require a pull request before merging** (via API flag; PRs merge
+      only when CI is green)
+  - [x] Required approvals: **0** (solo repo; bump to 1 when multiple
+        maintainers exist)
+  - [x] Dismiss stale pull request approvals when new commits are pushed
+  - [x] Require review from **Code Owners** (enforces `.github/CODEOWNERS`)
+- [x] **Require status checks to pass before merging**
+  - [x] Require branches to be up to date before merging
   - Required checks (from `.github/workflows/ci.yml`):
-    - [ ] `Format`
-    - [ ] `Lint (golangci-lint + gocritic + staticcheck)`
-    - [ ] `go vet`
-    - [ ] `Build`
-    - [ ] `Test (race detector)`
-    - [ ] `Coverage`
-    - [ ] `Security (govulncheck)`
-- [ ] **Require signed commits** (optional but recommended — pairs with
-      the DCO sign-off to give cryptographic + intent attestation)
-- [ ] **Require linear history** (enforces rebase/squash workflow)
-- [ ] **Do not allow bypassing the above settings** (applies to admins too)
+    - [x] `Format`
+    - [x] `Lint (golangci-lint + gocritic + staticcheck)`
+    - [x] `go vet`
+    - [x] `Build`
+    - [x] `Test (race detector)`
+    - [x] `Coverage`
+    - [x] `Security (govulncheck)`
+- [ ] **Require signed commits** — deferred; not every environment is set
+      up to produce signatures. Revisit when the project has an external
+      contributor.
+- [x] **Require linear history** (enforces rebase/squash workflow)
+- [x] **Require conversation resolution before merging**
+- [ ] **Do not allow bypassing the above settings** — intentionally off
+      (`enforce_admins: false`) so the solo maintainer can push hotfixes
+      directly. Flip to on when protection must apply to everyone.
 - [ ] **Restrict who can push to matching branches** — leave unchecked on
       a solo repo; enable when multiple maintainers exist
+- [x] **Block force pushes** and **block deletions**
 
 ---
 
@@ -42,10 +49,14 @@ Settings → Code security and analysis:
 - [x] **Dependabot alerts**
 - [x] **Dependabot security updates** (backed by `.github/dependabot.yml`)
 - [x] **Dependabot version updates** (gomod + github-actions, weekly)
-- [ ] **Secret scanning** (GitHub Advanced Security — free for public repos)
-- [ ] **Push protection** (blocks commits containing secret patterns)
+- [x] **Secret scanning** (GitHub Advanced Security — free for public repos)
+- [x] **Push protection** (blocks commits containing secret patterns)
+- [ ] **Secret scanning: generic (non-provider) patterns** — toggled
+      via API but the repo reports disabled; appears to require an
+      org-level setting. Revisit.
+- [ ] **Secret scanning: validity checks** — same story as above.
 - [x] **Code scanning** (CodeQL via `.github/workflows/codeql.yml`)
-- [ ] **Private vulnerability reporting**
+- [x] **Private vulnerability reporting**
       (enables the "Report a vulnerability" button referenced in
       [SECURITY.md](../.github/SECURITY.md))
 
