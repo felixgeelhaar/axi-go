@@ -2,84 +2,76 @@
   "schema_version": "1.0.0",
   "entries": [
     {
-      "fingerprint": "3bc305a9c97ebbb1079cdc686e9a59a163fa54d4062d3829945d92e839e23068",
-      "rule_id": "SEC-629",
-      "file_path": "CLAUDE.md",
-      "severity": "high",
-      "reason": "False positive: nox matching CLAUDE.md markdown text as LOB API key",
-      "created_at": "2026-04-14T15:06:29.266023Z"
-    },
-    {
-      "fingerprint": "27c253748e42392f8b24ef61f7f2f3af3827b0895b50ae4b46198b8496910607",
-      "rule_id": "SEC-629",
-      "file_path": "CLAUDE.md",
-      "severity": "high",
-      "reason": "False positive: nox matching CLAUDE.md documentation text as LOB API key",
-      "created_at": "2026-04-15T05:56:20.840899Z"
-    },
-    {
-      "fingerprint": "9b7329decb7d2dd6ee1a1c36e0b766d3f2ed1a03b8dac3a919cb2e1ba28a49cc",
-      "rule_id": "IAC-158",
-      "file_path": ".github/workflows/codeql.yml",
-      "severity": "medium",
-      "reason": "False positive: CodeQL is correctly configured for Go (the only language in this pure-Go repo)",
-      "created_at": "2026-04-16T07:54:12.295077Z"
-    },
-    {
-      "fingerprint": "4cb249c17209e10cad38a23b6ac4d81b0d4f88c658d06d73ad212c81ff4fcffe",
-      "rule_id": "IAC-158",
-      "file_path": ".github/workflows/codeql.yml",
-      "severity": "medium",
-      "reason": "False positive: CodeQL is correctly configured for Go (the only language in this pure-Go repo)",
-      "created_at": "2026-04-16T07:54:12.721361Z"
-    },
-    {
       "fingerprint": "c45e76a90b0dcd7b4065c2061d550b816e8a08a4794eb37a15b12f95c1979df6",
       "rule_id": "AI-028",
       "file_path": "toon/fuzz_test.go",
       "severity": "medium",
-      "reason": "False positive: Go's native testing.F fuzz harness, not an LLM. toon has no AI/LLM dependency.",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: Go native testing.F fuzz harness, not an LLM",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "79946ad5e773f68a2ea9f1c71ac87a3f29887ecee6dad76432481983c7e0c4c2",
       "rule_id": "DATA-001",
       "file_path": "example/mcp-server/main.go",
       "severity": "medium",
-      "reason": "False positive: synthetic example email address in demo MCP server, not real PII",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: synthetic test/example email address, not real PII",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "9e8b7c2c3de4ae2898c95f1b68091041ac0a1adc35f4d917b41543d3f6361c72",
       "rule_id": "DATA-001",
       "file_path": "example/mcp-server/main_test.go",
       "severity": "medium",
-      "reason": "False positive: synthetic test email in example code, not real PII",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: synthetic test/example email address, not real PII",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "6caf5cf409f3020fdfd73f8ffc3d1b68a7b108a59e67da62c9d0842ab0a546a5",
       "rule_id": "DATA-001",
       "file_path": "jsonstore/store_test.go",
       "severity": "medium",
-      "reason": "False positive: synthetic email in jsonstore persistence round-trip test, not real PII",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: synthetic test/example email address, not real PII",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "271220ae56ad5ddeaef36019549312877a72dd5372cefc05fb0b9b67a62a49f6",
       "rule_id": "DATA-001",
       "file_path": "jsonstore/store_test.go",
       "severity": "medium",
-      "reason": "False positive: synthetic email in jsonstore persistence round-trip test, not real PII",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: synthetic test/example email address, not real PII",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "454b4f77b57bc5d25c796715bc5af5fa808b3b7bfa755c9a69476fcb183116d5",
+      "rule_id": "IAC-018",
+      "file_path": ".github/workflows/ci.yml",
+      "severity": "low",
+      "reason": "Intentional: nox-scan step uses continue-on-error so the annotate step runs before the enforce gate fails the build",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "9b7329decb7d2dd6ee1a1c36e0b766d3f2ed1a03b8dac3a919cb2e1ba28a49cc",
+      "rule_id": "IAC-158",
+      "file_path": ".github/workflows/codeql.yml",
+      "severity": "medium",
+      "reason": "False positive: CodeQL is correctly configured for Go, the only language in this pure-Go repo",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "4cb249c17209e10cad38a23b6ac4d81b0d4f88c658d06d73ad212c81ff4fcffe",
+      "rule_id": "IAC-158",
+      "file_path": ".github/workflows/codeql.yml",
+      "severity": "medium",
+      "reason": "False positive: CodeQL is correctly configured for Go, the only language in this pure-Go repo",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "cec9e81a4c0ce0a7de5e8cd1ae83d699c772f7628ea2e3d530438f9dc943a8b8",
       "rule_id": "IAC-306",
       "file_path": ".github/workflows/release.yml",
       "severity": "medium",
-      "reason": "Intentional: id-token:write is required for cosign keyless signing via GitHub OIDC (documented in docs/SECURITY-SETUP.md)",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "Intentional: id-token:write required for cosign keyless signing via GitHub OIDC",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "51f13a21a0ecd40d8fa664a964fb4e935a58c8294181b1e620368cdcba80dc16",
@@ -87,319 +79,223 @@
       "file_path": ".github/workflows/fuzz.yml",
       "severity": "low",
       "reason": "Intentional: workflow_dispatch enables on-demand fuzz-smoke runs alongside the nightly schedule; no user inputs are consumed",
-      "created_at": "2026-04-18T00:00:00Z"
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "ec227a1e52b112a7df3b6d100299de6b18a1d1bc00cae549bcd4a5a6acf237ed",
+      "rule_id": "IAC-310",
+      "file_path": ".github/workflows/ci.yml",
+      "severity": "medium",
+      "reason": "Intentional: nox-scan step uses continue-on-error so the annotate step runs before the enforce gate fails the build",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "e69e961bc3ef0f4756a61f46ed4f02d64346fa08bf320f479d2a0ba62cda8260",
       "rule_id": "IAC-314",
       "file_path": ".github/workflows/release.yml",
       "severity": "medium",
-      "reason": "Intentional: contents:write is required to publish the GitHub Release body and attach SBOM artifacts",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "Intentional: contents:write required to publish the GitHub Release body and attach SBOM artifacts",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "f0ed4d76c8deb05409340ed1653f3d258933aaa9608ab79c40c56387e3ce0d52",
       "rule_id": "IAC-351",
       "file_path": ".github/workflows/release.yml",
       "severity": "critical",
-      "reason": "False positive: 'id-token' on the permissions: block is a GitHub permission scope name, not a hardcoded secret",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: id-token on the permissions: block is a GitHub permission scope name, not a hardcoded secret",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "9affc0566158096f17e00d3c84098a8b23950551e6bf39cadabf5212e7b3eaaa",
       "rule_id": "SEC-147",
       "file_path": "jsonstore/store_test.go",
       "severity": "high",
-      "reason": "False positive: matched chars 20-60 of test function name 'TestSessionStore_LoadsLegacySnapshotWithoutSchemaField' as a Resend API key. No secret present.",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "d175f1ce134207c4124d8e4830f9aae0faa573f13602921b6e9c78b7e0a4bd13",
-      "rule_id": "SEC-161",
-      "file_path": ".roady/plan.json",
-      "severity": "medium",
-      "reason": "False positive: high-entropy string is a roady task description, not a secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "9c17f25098a74220f432a8de68ce01a169f404443d7211ea030602fd900ee3d8",
-      "rule_id": "SEC-161",
-      "file_path": ".roady/plan.json",
-      "severity": "medium",
-      "reason": "False positive: high-entropy string is a roady task description, not a secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "2f947bb962a315cc62bc435ffedddbb9a896b6c7e7959b51828655dddbe9880a",
-      "rule_id": "SEC-161",
-      "file_path": ".roady/spec.lock.json",
-      "severity": "medium",
-      "reason": "False positive: high-entropy string is a roady spec task description, not a secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "41bf6a12091973adaf6fd9fdfec0287997920802051cee0a8f19e98dc2801c88",
-      "rule_id": "SEC-161",
-      "file_path": ".roady/spec.lock.json",
-      "severity": "medium",
-      "reason": "False positive: high-entropy string is a roady spec task description, not a secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "28ff359e3411691acd96e7f0e0b7c7f213162301081a803d024e5c67336e343a",
-      "rule_id": "SEC-161",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: high-entropy string is a roady execution-state artifact, not a secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "d547b2bb30c964db5631b9bba92eee694b5891d6829eb2222c7e62b8fcd745c2",
-      "rule_id": "SEC-161",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: high-entropy string is a roady execution-state artifact, not a secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "2c14acca4a6647514a1a9e3adc1bfd853c5deb086f0e44db9383a55dfe7d7776",
-      "rule_id": "SEC-162",
-      "file_path": ".roady/plan.json",
-      "severity": "medium",
-      "reason": "False positive: base64-shape string is a roady task description, not an encoded secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "72a5fd677a3c2372e9fceb3e7ebc3a7dd43d3cca78039d096e5afdbca5babb4e",
-      "rule_id": "SEC-162",
-      "file_path": ".roady/spec.lock.json",
-      "severity": "medium",
-      "reason": "False positive: base64-shape string is a roady spec artifact, not an encoded secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "d7967af3f3456bcf4d4732b966193fd8f54e13f881a26f7c3c9be9b946e11c89",
-      "rule_id": "SEC-162",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: base64-shape string is a roady execution-state artifact, not an encoded secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "dc13f819319a54b2bc89bbfd41cfc838343ea3b2387b68db897a90ff179f1d80",
-      "rule_id": "SEC-162",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: base64-shape string is a roady execution-state artifact, not an encoded secret",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "a14382fe02fbd8e288c286abc72e3a5aadf30c518246aa6ca891ebd43d4d3a9d",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/plan.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady task ID/checksum, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "c215029fe5ef65364b59b4857496669a5c95827b0772ffae65676e2fce4d4513",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/plan.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady task ID/checksum, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "38c72abe771245c287998289cd8353e6d004b35cce3f37b98e9a830d9d8407d7",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/plan.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady task ID/checksum, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "bda4df56b083ad3a0926b1f8dc0e9afe840aa4d1a0a611b51d62a1ceafe6151f",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/plan.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady task ID/checksum, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "7e8d35439c71fdebbc84b08e21b701a406d53bc6accd51366bdf3f8152d590ea",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/spec.lock.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady spec ID/checksum, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "6a44a7c5c7720b4efccfd44ec16ebd02f17f7ed788162feefb8cbb85342f0761",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/spec.lock.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady spec ID/checksum, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "a7dcee9a9a66dafbfc4326f2017ee379389497b62c34b97dfb87d88020fa6ac7",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/spec.lock.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady spec ID/checksum, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "370019e7e1a0e9ac7d905723515f8ae233ce07d8dbc7c9220e929cbde958499b",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady execution-state artifact, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "3efc9d70808a0259e636d3b756f8feb7a520d954a6f5b2192f7fe99677900c13",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady execution-state artifact, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "c56d463d394a7e49e45e3d2d8ae1fec258a6a84ef43ae087fac8aec06830357c",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady execution-state artifact, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
-    },
-    {
-      "fingerprint": "95ed3641a30ba1b9f9361dda2cc5046ff34bdee7114a2c327363f51b414f3b2a",
-      "rule_id": "SEC-163",
-      "file_path": ".roady/state.json",
-      "severity": "medium",
-      "reason": "False positive: hex-shape string is a roady execution-state artifact, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched a test function name, not a Resend API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "f049056965fc640ef960aca3d59f1b7ae79e411ce7c2bc75a476ef870ec59d82",
       "rule_id": "SEC-163",
       "file_path": "domain/pipeline_test.go",
       "severity": "medium",
-      "reason": "False positive: match is inside a t.Errorf format string ('sum of TokensUsed = %d, want 30'), not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched inside a test/example format string, not a cryptographic key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "3c1a639999cb0b18b7d0c96542f40dae01157f71a77bc47bc6db609873aafa6a",
       "rule_id": "SEC-163",
       "file_path": "example/main.go",
       "severity": "medium",
-      "reason": "False positive: match is inside a fmt.Printf format string for evidence rendering, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched inside a test/example format string, not a cryptographic key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "7da090b4ed36ee54129d7ddaea8cdb69427dc8f38fdd42abc5456bef832d8042",
       "rule_id": "SEC-163",
       "file_path": "jsonstore/store_test.go",
       "severity": "medium",
-      "reason": "False positive: match is inside a t.Errorf format string ('TokensUsed round-trip failed'), not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched inside a test/example format string, not a cryptographic key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "3fa281bc62e84a3eb28206df420a0ea74b50791c4ae8b4ae2071e0b0b57ba966",
       "rule_id": "SEC-163",
       "file_path": "jsonstore/store_test.go",
       "severity": "medium",
-      "reason": "False positive: match is inside a t.Errorf format string for per-record TokensUsed error reporting, not a cryptographic key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched inside a test/example format string, not a cryptographic key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
-      "fingerprint": "519765748fdb16ea02161654d96c7f97b6f5850a59e47bf6c1e2b49e9fe5d311",
+      "fingerprint": "af6878ca694526af01cd143fa9b5d366c96cb38a81a9ceb635a7ce1e15b01c5d",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "0511769f6f0f4674b6067807fd289539c1ca558b4416c3cd7b7a47500986a48a",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "8179589728b7ede41e814ad9b127d88bb49be35ae4d0573a1a419783991383d7",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "31a0c10b0bf9d4b5fd0ac3f79d6f10e0ce16d931d2df2b6f3c4b33898b2dbdf2",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "d2cc6debeea15b826e39c251ec3f738cd4ccb93ce55327c5e98af52002e090d6",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "73b4959f4c7d3a4e3d6984b633589aeb9da5fe2e960283052c7002a54cd849ad",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "87903938ee530ce389ce3ac07896d2cd8f6688edac691c0e4ab47dfe97770eee",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "08f3f8d45e32e4a0429ef0f4eea1b1e65bec9432a858c9de3f6002793803e04c",
+      "rule_id": "SEC-574",
+      "file_path": ".github/workflows/release.yml",
+      "severity": "high",
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "bbabf401da1284421c09c1eb41a12bff5cf85199b3ec4ebd1bf4283c21047a3f",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/fuzz.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit (Dependabot/supply-chain-best-practice style action ref like actions/checkout@<sha>), not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "e655da794d80104b83705246def00c1e0f4ce940d171036cc84aa3f12d5189bf",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/fuzz.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
-      "fingerprint": "b3d2e6fbec2fa090b67703ac0450b3d4b90123010901a25b642c75d184cf756c",
+      "fingerprint": "de1e86d7176d41a070bd5ed39e45d1e0c7c3adc9c3b447ea9ef5bb76d762166e",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/fuzz.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
-      "fingerprint": "211559eab07627a84b5d8c692e5a8febe728fc5836bcd9a2a2f0944297a98370",
+      "fingerprint": "f6c9da727f459ebc0a015f50d1bf34468711d7086bca9815f26fa934c8c96477",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "e60a7c16923c49d36b75366c3cb9f09c992390b7c8679e93ec677fb20758c946",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
-      "fingerprint": "21a64de4ecadc233b677ae540fdd80e2e8eb1401252eae2fbb4df63d2d6201aa",
+      "fingerprint": "a51fc4a48148a4f3de06c9d3f8d85674df9928d40a88b554a9952835b2a94370",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "9e3145dbfa29a4c5b6d3bb6e79b88d111f5f0a8544df0ecc3121c75cdd84e6e1",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
-      "fingerprint": "fb0015611af01e97ecafb9f87a8b044d48366fc0c6716f135cbbd14ffa3b364d",
+      "fingerprint": "6eb32b95763c08b25bf0d4c77344bb26fa87de5fd216fb15eb62bf4e3a3a9c82",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
-      "fingerprint": "290c08dbd1decc5e6a1a8c6d56221c988abd82bd1d3c088025ec03d4959c4c2a",
+      "fingerprint": "8ea170c18a25061d07b32727b34ce202d83596c4d3619d96fc5454c3a96048a8",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
-      "fingerprint": "d715418eeaa56ea47c57f54851a154f57a9183b475e5d16c646fde51f4e8e52b",
+      "fingerprint": "709819798f6e953d390c7a990cf28550bdc46741c3f9f3be84c4fa88b6e3a279",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     },
     {
       "fingerprint": "85b884d46b959fcc37bcb69d0007431ef8868a0492156256cefa0b01012fa6de",
       "rule_id": "SEC-629",
       "file_path": ".github/workflows/release.yml",
       "severity": "high",
-      "reason": "False positive: matched pinned git SHA commit for action ref, not a LOB API key",
-      "created_at": "2026-04-18T00:00:00Z"
+      "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
+      "created_at": "2026-04-18T12:20:11Z"
     }
   ]
 }

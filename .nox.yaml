@@ -1,0 +1,15 @@
+# nox security scanner configuration.
+# Reference: https://github.com/nox-hq/nox
+
+scan:
+  exclude:
+    # The baseline itself contains SHA256 fingerprints of suppressed
+    # findings. Scanning it triggers SEC-629 (LOB API key) on every
+    # entry — a self-amplifying false-positive loop.
+    - ".nox/**"
+
+    # Roady project-management artifacts (spec, plan, state). Contain
+    # high-entropy task IDs and checksums that look like secrets to
+    # entropy-based rules but are project metadata, not credentials.
+    # Re-baselining on every roady state change is busywork.
+    - ".roady/**"
