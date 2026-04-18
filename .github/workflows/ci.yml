@@ -142,9 +142,22 @@ jobs:
           chmod +x nox
           sudo mv nox /usr/local/bin/nox
           nox version
+      - name: Verify nox config is present
+        run: |
+          ls -la .nox.yaml || echo "MISSING .nox.yaml"
+          cat .nox.yaml || true
       - name: Run nox scan
         id: scan
         run: nox scan .
+      - name: Dump findings (debug)
+        if: always()
+        run: |
+          if [ -f findings.json ]; then
+            echo "=== Unsuppressed findings ==="
+            jq '.findings[] | {file: .Location.FilePath, line: .Location.StartLine, rule: .RuleID, msg: .Message, fp: .Fingerprint}' findings.json | head -100
+          else
+            echo "No findings.json produced"
+          fi
         # Don't fail the job here — let the annotate step run first so
         # PRs get inline review comments. The enforce step below fails
         # the build if scan exited non-zero.
