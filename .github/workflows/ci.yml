@@ -121,3 +121,42 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+
+  nox-scan:
+    name: Security (nox)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # nox annotate posts a PR review
+    env:
+      NOX_VERSION: "0.7.0"
+      NOX_SHA256: "d34cc1fb4c73c66ed9e9a55cfa20019120ebf6a45309ebaf86992de307eda3d9"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install nox
+        run: |
+          curl -fsSL -o nox.tar.gz \
+            "https://github.com/nox-hq/nox/releases/download/v${NOX_VERSION}/nox_${NOX_VERSION}_linux_amd64.tar.gz"
+          echo "${NOX_SHA256}  nox.tar.gz" | sha256sum -c -
+          tar xzf nox.tar.gz
+          chmod +x nox
+          sudo mv nox /usr/local/bin/nox
+          nox version
+      - name: Run nox scan
+        id: scan
+        run: nox scan .
+        # Don't fail the job here — let the annotate step run first so
+        # PRs get inline review comments. The enforce step below fails
+        # the build if scan exited non-zero.
+        continue-on-error: true
+      - name: Annotate PR with findings
+        if: steps.scan.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: nox annotate
+      - name: Enforce security gate
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "::error::nox security scan found unsuppressed issues. Triage in .nox/baseline.json (with a reason) or fix the underlying problem."
+          exit 1
