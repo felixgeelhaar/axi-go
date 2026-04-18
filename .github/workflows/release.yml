@@ -102,6 +102,9 @@ jobs:
                 if (inside) exit
                 if ($0 ~ "\\[" ver "\\]") { inside=1; next }
               }
+              # Stop before Markdown link-reference definitions ([name]: url)
+              # so they never leak into the GitHub Release body.
+              /^\[[^]]+\]:/ { if (inside) exit }
               inside { print }
             ' CHANGELOG.md
             echo "CHANGELOG_EOF"
