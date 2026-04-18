@@ -1,6 +1,6 @@
 {
   "project_id": "axi-go",
-  "version": 20,
+  "version": 23,
   "task_states": {
     "task-[post-1.0]-distributed-saga-semantics": {
       "status": "blocked",
@@ -13,8 +13,14 @@
       "elapsed_minutes": 0
     },
     "task-[post-1.0]-observability-ports": {
-      "status": "blocked",
+      "status": "done",
       "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "PR #11 (commit fe43831 on feat/domain-event-publisher). Strict-DDD DomainEventPublisher port: events as immutable value objects raised by ExecutionSession aggregate, drained by ActionExecutionService. boundInvoker publishes capability-level events directly. NopDomainEventPublisher default. Kernel.WithDomainEventPublisher(nil) safe. All real CI gates green."
+      ],
+      "started_at": "2026-04-18T18:54:41.980052+02:00",
+      "completed_at": "2026-04-18T18:54:51.17493+02:00",
       "elapsed_minutes": 0
     },
     "task-[post-1.0]-streaming-executionresult": {
@@ -100,5 +106,5 @@
       "elapsed_minutes": 0
     }
   },
-  "updated_at": "2026-04-18T01:19:01.701373+02:00"
+  "updated_at": "2026-04-18T18:54:51.17493+02:00"
 }
