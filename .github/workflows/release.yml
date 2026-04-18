@@ -109,8 +109,12 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          # Pass CHANGELOG body via env, not ${{ }} interpolation into the
+          # shell — otherwise quotes/backticks in the CHANGELOG would be
+          # interpreted as shell syntax, which is both a bug and a
+          # code-execution vector.
+          BODY: ${{ steps.changelog.outputs.body }}
         run: |
-          BODY="${{ steps.changelog.outputs.body }}"
           if [ -z "$BODY" ]; then
             BODY="Release ${GITHUB_REF_NAME}. See CHANGELOG.md for details."
           fi
