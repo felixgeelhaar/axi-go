@@ -296,6 +296,46 @@
       "severity": "high",
       "reason": "False positive: matched pinned git SHA commit for a GitHub Action ref, not an API key",
       "created_at": "2026-04-18T12:20:11Z"
+    },
+    {
+      "fingerprint": "8c356b631fe4e60bbb3bdb7073d8dac2c8f307187e19f6c425b96a9dae5352fc",
+      "rule_id": "IAC-018",
+      "file_path": ".github/workflows/ci.yml",
+      "severity": "low",
+      "reason": "Intentional: nox-scan step uses continue-on-error so the annotate step runs before the enforce gate fails the build (line shifted after job restructure)",
+      "created_at": "2026-04-18T16:52:02Z"
+    },
+    {
+      "fingerprint": "3c27c37978cee4aef6417881e7c7cc71d02534a2f401aa6c19dd102efae5f618",
+      "rule_id": "IAC-310",
+      "file_path": ".github/workflows/ci.yml",
+      "severity": "medium",
+      "reason": "Intentional: nox-scan step uses continue-on-error so the annotate step runs before the enforce gate fails the build (line shifted after job restructure)",
+      "created_at": "2026-04-18T16:52:02Z"
+    },
+    {
+      "fingerprint": "fdcecf9373179c4efa8bcdece52bb5dcb1285ceaae5199b2561d839e7ab6bff4",
+      "rule_id": "SEC-680",
+      "file_path": "axi.go",
+      "severity": "high",
+      "reason": "False positive: SEC-680 regex (Prometheus API Key) matches substring of RegisterPluginContributionUseCase identifier, not a credential",
+      "created_at": "2026-04-18T16:52:02Z"
+    },
+    {
+      "fingerprint": "a7c3c43b2727d1711d86a49e1bdd4ff33ba17d5da0ba8eab6cb1a5a326bc63fe",
+      "rule_id": "SEC-680",
+      "file_path": "axi.go",
+      "severity": "high",
+      "reason": "False positive: SEC-680 regex (Prometheus API Key) matches substring of RegisterPluginContributionUseCase identifier, not a credential",
+      "created_at": "2026-04-18T16:52:02Z"
+    },
+    {
+      "fingerprint": "7915a885d9564dfbdd5c99fb398a08dd4a633f1318f27e880b4ad1762c90ee32",
+      "rule_id": "SEC-680",
+      "file_path": "axi.go",
+      "severity": "high",
+      "reason": "False positive: SEC-680 regex (Prometheus API Key) matches substring of RegisterPluginContributionUseCase identifier, not a credential",
+      "created_at": "2026-04-18T16:52:02Z"
     }
   ]
 }

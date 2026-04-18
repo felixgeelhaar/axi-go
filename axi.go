@@ -121,6 +121,21 @@ func (k *Kernel) WithRateLimiter(rl domain.RateLimiter) *Kernel {
 	return k
 }
 
+// WithDomainEventPublisher wires a publisher that receives domain events
+// raised during execution (session lifecycle, capability invocations,
+// budget exhaustion, evidence). Pass nil to fall back to the no-op
+// default. Returns the kernel for chaining.
+//
+// The default is domain.NopDomainEventPublisher, which discards events
+// and preserves axi-go's zero-deps story for callers that do not wire
+// observability. Adapters classify events into Prometheus metrics,
+// OpenTelemetry spans, audit logs, or any other downstream concern;
+// the kernel itself imports nothing vendor-specific.
+func (k *Kernel) WithDomainEventPublisher(p domain.DomainEventPublisher) *Kernel {
+	k.execution.SetDomainEventPublisher(p)
+	return k
+}
+
 // WithTimeout configures a default execution timeout via the budget's MaxDuration.
 // Returns the kernel for chaining.
 func (k *Kernel) WithTimeout(d time.Duration) *Kernel {

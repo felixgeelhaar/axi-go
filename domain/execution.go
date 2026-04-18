@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -52,6 +53,7 @@ type ActionExecutionService struct {
 	rateLimiter       RateLimiter
 	defaultBudget     ExecutionBudget
 	logger            Logger
+	publisher         DomainEventPublisher
 }
 
 // NewActionExecutionService creates an ActionExecutionService.
@@ -70,6 +72,7 @@ func NewActionExecutionService(
 		capExecutors:      capExecutors,
 		rateLimiter:       &NoopRateLimiter{},
 		logger:            &NopLogger{},
+		publisher:         NopDomainEventPublisher{},
 	}
 }
 
@@ -88,10 +91,30 @@ func (s *ActionExecutionService) SetDefaultBudget(budget ExecutionBudget) {
 	s.defaultBudget = budget
 }
 
+// SetDomainEventPublisher configures the publisher that receives domain
+// events raised during execution. Pass NopDomainEventPublisher (the
+// default) to discard events.
+func (s *ActionExecutionService) SetDomainEventPublisher(p DomainEventPublisher) {
+	if p == nil {
+		p = NopDomainEventPublisher{}
+	}
+	s.publisher = p
+}
+
+// drain forwards all pending events on the session to the publisher.
+// Called after each state-mutating operation that may have raised events.
+func (s *ActionExecutionService) drain(session *ExecutionSession) {
+	for _, event := range session.PullEvents() {
+		s.publisher.Publish(event)
+	}
+}
+
 // Execute runs the execution flow on a session.
 // For actions with write-external effects, the session pauses at AwaitingApproval
 // and must be resumed via Resume() after approval. Otherwise runs to completion.
 func (s *ActionExecutionService) Execute(ctx context.Context, session *ExecutionSession) error {
+	defer s.drain(session)
+
 	s.logger.Info("executing action",
 		F("session_id", string(session.ID())),
 		F("action", string(session.ActionName())),
@@ -119,6 +142,7 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 	if err := session.MarkValidated(); err != nil {
 		return err
 	}
+	s.drain(session)
 
 	if err := ctx.Err(); err != nil {
 		return err
@@ -142,7 +166,7 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 		if err := session.MarkAwaitingApproval(); err != nil {
 			return err
 		}
-		return nil // Paused — caller must approve then call Resume().
+		return nil // Paused — caller must approve then call Resume(); deferred drain flushes.
 	}
 
 	// No approval needed — execute immediately.
@@ -152,6 +176,8 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 // Resume continues execution of a session that was approved.
 // The session must be in Running status (after Approve() was called).
 func (s *ActionExecutionService) Resume(ctx context.Context, session *ExecutionSession) error {
+	defer s.drain(session)
+
 	if session.Status() != StatusRunning {
 		return fmt.Errorf("cannot resume session in %s status", session.Status())
 	}
@@ -171,7 +197,7 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 	if err != nil {
 		return fmt.Errorf("capability resolution failed: %w", err)
 	}
-	invoker, err := s.buildInvoker(ctx, resolvedCaps, action.IdempotencyProfile().IsIdempotent)
+	invoker, err := s.buildInvoker(ctx, resolvedCaps, action.IdempotencyProfile().IsIdempotent, session.ID(), action.Name())
 	if err != nil {
 		return fmt.Errorf("failed to build capability invoker: %w", err)
 	}
@@ -212,6 +238,12 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 			total += e.TokensUsed
 		}
 		if total > s.defaultBudget.MaxTokens {
+			s.publisher.Publish(BudgetExceeded{
+				SessionID:  session.ID(),
+				ActionName: action.Name(),
+				Kind:       BudgetKindTokens,
+				At:         time.Now(),
+			})
 			if failErr := session.Fail(FailureReason{
 				Code:    "BUDGET_EXCEEDED",
 				Message: fmt.Sprintf("token budget %d exceeded: used %d", s.defaultBudget.MaxTokens, total),
@@ -237,7 +269,15 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 
 // buildInvoker creates a CapabilityInvoker from resolved capabilities.
 // idempotent is the action's idempotency flag and gates retry eligibility.
-func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities []*CapabilityDefinition, idempotent bool) (CapabilityInvoker, error) {
+// sessionID and actionName are carried so the invoker can stamp the
+// CapabilityInvoked / CapabilityRetried / BudgetExceeded events it raises.
+func (s *ActionExecutionService) buildInvoker(
+	ctx context.Context,
+	capabilities []*CapabilityDefinition,
+	idempotent bool,
+	sessionID ExecutionSessionID,
+	actionName ActionName,
+) (CapabilityInvoker, error) {
 	capMap := make(map[CapabilityName]*CapabilityDefinition, len(capabilities))
 	for _, c := range capabilities {
 		capMap[c.Name()] = c
@@ -250,6 +290,9 @@ func (s *ActionExecutionService) buildInvoker(ctx context.Context, capabilities 
 		idempotent:   idempotent,
 		maxRetries:   s.defaultBudget.MaxRetries,
 		retryBackoff: s.defaultBudget.RetryBackoff,
+		publisher:    s.publisher,
+		sessionID:    sessionID,
+		actionName:   actionName,
 	}, nil
 }
 
@@ -261,10 +304,19 @@ type boundInvoker struct {
 	idempotent   bool
 	maxRetries   int
 	retryBackoff time.Duration
+	publisher    DomainEventPublisher
+	sessionID    ExecutionSessionID
+	actionName   ActionName
 }
 
 func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
 	if err := i.budget.checkInvocation(); err != nil {
+		i.publisher.Publish(BudgetExceeded{
+			SessionID:  i.sessionID,
+			ActionName: i.actionName,
+			Kind:       budgetKindFromError(err),
+			At:         time.Now(),
+		})
 		return nil, err
 	}
 	c, ok := i.capabilities[name]
@@ -281,7 +333,21 @@ func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
 	// slots, but MaxDuration still bounds total wall-clock cost.
 	attempt := 0
 	for {
+		start := time.Now()
 		result, err := i.invokeOnce(executor, input)
+		duration := time.Since(start)
+		outcome := OutcomeSuccess
+		if err != nil {
+			outcome = OutcomeError
+		}
+		i.publisher.Publish(CapabilityInvoked{
+			SessionID:  i.sessionID,
+			ActionName: i.actionName,
+			Capability: name,
+			Duration:   duration,
+			Outcome:    outcome,
+			At:         start,
+		})
 		if err == nil {
 			return result, nil
 		}
@@ -303,6 +369,13 @@ func (i *boundInvoker) Invoke(name CapabilityName, input any) (any, error) {
 			}
 		}
 		attempt++
+		i.publisher.Publish(CapabilityRetried{
+			SessionID:  i.sessionID,
+			ActionName: i.actionName,
+			Capability: name,
+			Attempt:    attempt,
+			At:         time.Now(),
+		})
 	}
 }
 
@@ -311,4 +384,20 @@ func (i *boundInvoker) invokeOnce(executor CapabilityExecutor, input any) (any, 
 		return composable.ExecuteWithInvoker(i.ctx, input, i)
 	}
 	return executor.Execute(i.ctx, input)
+}
+
+// budgetKindFromError inspects the error message produced by
+// budgetEnforcer.checkInvocation to recover which limit triggered. The
+// enforcer encodes the kind in the error string (it does not yet return
+// a typed error); when that is improved, this helper can be removed.
+func budgetKindFromError(err error) BudgetKind {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "max duration"):
+		return BudgetKindDuration
+	case strings.Contains(msg, "capability invocations"):
+		return BudgetKindInvocations
+	default:
+		return BudgetKindInvocations
+	}
 }

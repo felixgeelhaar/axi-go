@@ -118,8 +118,16 @@ Features that have been considered and deferred past 1.0:
   `EvidenceRecord.TokensUsed`. A future release may hash-chain evidence
   or require a kernel-signed origin. For 1.0, this remains a documented
   trust boundary — see [CONCEPTS.md](CONCEPTS.md).
-- **Observability ports.** A `MetricsReporter` port analogous to `Logger`
-  is on the list but not in the 1.0 critical path.
+- **Observability ports.** ~~A `MetricsReporter` port analogous to
+  `Logger` is on the list but not in the 1.0 critical path.~~
+  Landed for 1.1 as `domain.DomainEventPublisher`. The port emits
+  domain events (SessionStarted, CapabilityInvoked, BudgetExceeded,
+  EvidenceRecorded, …) rather than pre-classified metrics — adapters
+  decide whether each event becomes a Prometheus counter, an
+  OpenTelemetry span event, or a log line. Strict-DDD shape: events
+  are immutable value objects raised by the `ExecutionSession`
+  aggregate and drained by the application service. See
+  [CHANGELOG.md](../CHANGELOG.md) Unreleased section.
 - **MCP adapter as a package.** `example/mcp-server/` will stay as an
   example. Users copy-paste it or vendor it; axi-go itself will not
   import an MCP schema.

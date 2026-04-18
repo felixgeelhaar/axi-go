@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // validTransitions defines the primary (happy-path) state transitions.
@@ -19,6 +20,12 @@ var validTransitions = map[ExecutionStatus]ExecutionStatus{
 // ExecutionSession is the aggregate root for one action execution.
 // Thread-safe: all mutations and reads are protected by a mutex
 // to support concurrent access in async execution mode.
+//
+// Following strict DDD, the aggregate raises domain events as part of
+// its state transitions. Events accumulate in pendingEvents and are
+// drained by the application service via PullEvents after each call,
+// then forwarded to a DomainEventPublisher. The aggregate itself does
+// not know about publishers — that is infrastructure.
 type ExecutionSession struct {
 	mu sync.RWMutex
 
@@ -35,6 +42,14 @@ type ExecutionSession struct {
 	result           *ExecutionResult
 	failure          *FailureReason
 	approvalDecision *ApprovalDecision
+
+	// startedAt captures the wall-clock time at which the session became
+	// Validated. Used to compute Duration on the SessionCompleted event.
+	startedAt time.Time
+
+	// pendingEvents accumulates domain events raised during state
+	// transitions; drained by PullEvents.
+	pendingEvents []DomainEvent
 }
 
 // NewExecutionSession creates a new session in Pending status.
@@ -57,11 +72,21 @@ func NewExecutionSession(
 	}, nil
 }
 
-// MarkValidated transitions Pending → Validated.
+// MarkValidated transitions Pending → Validated and raises SessionStarted.
 func (s *ExecutionSession) MarkValidated() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.transitionTo(StatusValidated)
+	if err := s.transitionTo(StatusValidated); err != nil {
+		return err
+	}
+	now := time.Now()
+	s.startedAt = now
+	s.recordEvent(SessionStarted{
+		SessionID:  s.id,
+		ActionName: s.actionName,
+		At:         now,
+	})
+	return nil
 }
 
 // MarkResolved transitions Validated → Resolved, recording resolved capabilities.
@@ -75,7 +100,8 @@ func (s *ExecutionSession) MarkResolved(capabilities []CapabilityName) error {
 	return nil
 }
 
-// MarkAwaitingApproval transitions Resolved → AwaitingApproval.
+// MarkAwaitingApproval transitions Resolved → AwaitingApproval and
+// raises SessionAwaitingApproval.
 func (s *ExecutionSession) MarkAwaitingApproval() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -84,6 +110,11 @@ func (s *ExecutionSession) MarkAwaitingApproval() error {
 	}
 	s.status = StatusAwaitingApproval
 	s.requiresApproval = true
+	s.recordEvent(SessionAwaitingApproval{
+		SessionID:  s.id,
+		ActionName: s.actionName,
+		At:         time.Now(),
+	})
 	return nil
 }
 
@@ -103,7 +134,8 @@ func (s *ExecutionSession) Approve(decision ApprovalDecision) error {
 	return nil
 }
 
-// Reject transitions AwaitingApproval → Rejected with a reason.
+// Reject transitions AwaitingApproval → Rejected with a reason and
+// raises SessionCompleted (Status: Rejected).
 // The decision must include a non-empty Principal identifying who rejected.
 func (s *ExecutionSession) Reject(reason FailureReason, decision ApprovalDecision) error {
 	if decision.Principal == "" {
@@ -117,6 +149,7 @@ func (s *ExecutionSession) Reject(reason FailureReason, decision ApprovalDecisio
 	s.approvalDecision = &decision
 	s.status = StatusRejected
 	s.failure = &reason
+	s.recordCompletion(StatusRejected)
 	return nil
 }
 
@@ -127,7 +160,8 @@ func (s *ExecutionSession) MarkRunning() error {
 	return s.transitionTo(StatusRunning)
 }
 
-// Succeed transitions Running → Succeeded with a result.
+// Succeed transitions Running → Succeeded and raises SessionCompleted
+// (Status: Succeeded).
 func (s *ExecutionSession) Succeed(result ExecutionResult) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -135,10 +169,12 @@ func (s *ExecutionSession) Succeed(result ExecutionResult) error {
 		return err
 	}
 	s.result = &result
+	s.recordCompletion(StatusSucceeded)
 	return nil
 }
 
-// Fail transitions Running → Failed with a failure reason.
+// Fail transitions Running → Failed and raises SessionCompleted
+// (Status: Failed).
 func (s *ExecutionSession) Fail(reason FailureReason) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -147,14 +183,23 @@ func (s *ExecutionSession) Fail(reason FailureReason) error {
 	}
 	s.status = StatusFailed
 	s.failure = &reason
+	s.recordCompletion(StatusFailed)
 	return nil
 }
 
-// AppendEvidence adds an evidence record (append-only).
+// AppendEvidence adds an evidence record (append-only) and raises
+// EvidenceRecorded.
 func (s *ExecutionSession) AppendEvidence(record EvidenceRecord) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.evidence = append(s.evidence, record)
+	s.recordEvent(EvidenceRecorded{
+		SessionID:    s.id,
+		ActionName:   s.actionName,
+		EvidenceKind: record.Kind,
+		Tokens:       record.TokensUsed,
+		At:           time.Now(),
+	})
 }
 
 func (s *ExecutionSession) transitionTo(target ExecutionStatus) error {
@@ -164,6 +209,48 @@ func (s *ExecutionSession) transitionTo(target ExecutionStatus) error {
 	}
 	s.status = target
 	return nil
+}
+
+// recordEvent appends an event to the pending buffer. Caller must hold
+// the write lock.
+func (s *ExecutionSession) recordEvent(event DomainEvent) {
+	s.pendingEvents = append(s.pendingEvents, event)
+}
+
+// recordCompletion raises a SessionCompleted event with Duration measured
+// from the session's startedAt timestamp. If startedAt is zero (e.g. a
+// session that fails before MarkValidated), Duration is reported as zero.
+// Caller must hold the write lock.
+func (s *ExecutionSession) recordCompletion(status ExecutionStatus) {
+	now := time.Now()
+	var duration time.Duration
+	if !s.startedAt.IsZero() {
+		duration = now.Sub(s.startedAt)
+	}
+	s.recordEvent(SessionCompleted{
+		SessionID:  s.id,
+		ActionName: s.actionName,
+		Status:     status,
+		Duration:   duration,
+		At:         now,
+	})
+}
+
+// PullEvents returns and clears the pending domain-event buffer.
+// The application service calls this after each state-mutating operation
+// and forwards the events to the configured DomainEventPublisher.
+//
+// Returns nil when the buffer is empty (the caller can range over nil
+// safely; allocation is avoided on the hot path).
+func (s *ExecutionSession) PullEvents() []DomainEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.pendingEvents) == 0 {
+		return nil
+	}
+	out := s.pendingEvents
+	s.pendingEvents = nil
+	return out
 }
 
 // ID returns the session identifier (set at construction; immutable).

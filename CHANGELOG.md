@@ -8,6 +8,25 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
+### Added
+
+- **`domain.DomainEventPublisher` port** — observability hook in the
+  shape of a strict-DDD domain event channel rather than a pre-classified
+  metrics interface. The kernel raises immutable event value objects
+  (`SessionStarted`, `SessionAwaitingApproval`, `SessionCompleted`,
+  `CapabilityInvoked`, `CapabilityRetried`, `BudgetExceeded`,
+  `EvidenceRecorded`); adapters classify them into Prometheus counters,
+  OpenTelemetry spans, audit logs, or any other downstream concern. The
+  domain itself imports nothing vendor-specific. Default is
+  `NopDomainEventPublisher`, preserving the zero-deps story for callers
+  that don't wire observability. Wire-up via `kernel.WithDomainEventPublisher(p)`.
+  Following strict DDD: events are raised by the `ExecutionSession`
+  aggregate inside its state-transition methods, accumulated in a
+  per-session buffer, and drained by `ActionExecutionService` after
+  each step. The `boundInvoker` (a domain service) publishes
+  capability-level events directly since there is no aggregate to
+  attach them to.
+
 ## [1.0.0] - 2026-04-18
 
 First stable release. All six items on the
