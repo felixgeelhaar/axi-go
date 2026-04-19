@@ -122,13 +122,14 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-  # Informational nox scan. Currently runs but does NOT enforce — the Linux
-  # build of nox v0.7.0 surfaces ~20 findings the macOS build doesn't, and
-  # the cross-platform rule-set parity needs to be sorted out before this
-  # gates merges. Findings are uploaded as an artifact for human triage and
-  # annotated inline on PRs.
+  # nox scan. Enforces on every push and PR; fails the build on any
+  # unsuppressed finding. Linux/macOS parity was resolved by excluding
+  # *.md from the walker — the two builds disagreed on whether to scan
+  # markdown, and the findings there were all false positives inside
+  # README code samples. Adapters still get inline PR annotations and
+  # the findings.json artifact for human triage.
   nox-scan:
-    name: Security (nox, informational)
+    name: Security (nox)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -149,6 +150,9 @@ jobs:
           nox version
       - name: Run nox scan
         id: scan
+        # Don't let this step fail the job directly — the annotate step
+        # needs to run first so PR reviewers see inline comments. The
+        # Enforce step below fails the build if scan exited non-zero.
         run: nox scan .
         continue-on-error: true
       - name: Summarise findings
@@ -157,7 +161,7 @@ jobs:
           if [ -f findings.json ]; then
             UNSUPPRESSED=$(jq '[.findings[] | select(.Status != "baselined")] | length' findings.json)
             TOTAL=$(jq '.findings | length' findings.json)
-            echo "::notice::nox: ${UNSUPPRESSED} unsuppressed of ${TOTAL} total findings (see uploaded findings.json artifact)"
+            echo "::notice::nox: ${UNSUPPRESSED} unsuppressed of ${TOTAL} total findings"
           fi
       - name: Upload findings.json
         if: always()
@@ -172,3 +176,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: nox annotate
+      - name: Enforce security gate
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "::error::nox security scan found unsuppressed issues. Triage in .nox/baseline.json (with a reason) or fix the underlying problem."
+          exit 1
