@@ -13,3 +13,16 @@ scan:
     # entropy-based rules but are project metadata, not credentials.
     # Re-baselining on every roady state change is busywork.
     - ".roady/**"
+
+    # Markdown documentation. The Linux and macOS builds of nox v0.7.0
+    # disagree on whether to walk *.md files — Linux does, macOS does
+    # not — which made the nox-scan CI job fail with findings the
+    # developer's local scan never produced. More substantively,
+    # README code samples and CHANGELOG snippets routinely contain
+    # identifiers whose substrings collide with vendor API-key regexes
+    # (Braintree, Maven, NuGet, DigitalOcean, Datadog, PagerDuty,
+    # SendGrid, Lob, Grafana, …). Secret-scanning documentation prose
+    # is the wrong tool for that job — a git-history secret scanner
+    # (gitleaks, trufflehog) is the right one. Exclude the extension
+    # globally so both platforms agree on what's in scope.
+    - "**/*.md"

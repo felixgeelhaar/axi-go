@@ -336,6 +336,22 @@
       "severity": "high",
       "reason": "False positive: SEC-680 regex (Prometheus API Key) matches substring of RegisterPluginContributionUseCase identifier, not a credential",
       "created_at": "2026-04-18T16:52:02Z"
+    },
+    {
+      "fingerprint": "d45811c15c2bbec7bfd5f6f1808e5f0c9074e0466e202d019fb89a95392e415a",
+      "rule_id": "IAC-018",
+      "file_path": ".github/workflows/ci.yml",
+      "severity": "low",
+      "reason": "Intentional: nox-scan step uses continue-on-error so annotate runs before the enforce gate fails the build",
+      "created_at": "2026-04-19T10:03:59Z"
+    },
+    {
+      "fingerprint": "b5365c6c148224e7e4434dbb7e66f4b28c9028c1a88ce5bbb9f194ba23fa8413",
+      "rule_id": "IAC-310",
+      "file_path": ".github/workflows/ci.yml",
+      "severity": "medium",
+      "reason": "Intentional: nox-scan step uses continue-on-error so annotate runs before the enforce gate fails the build",
+      "created_at": "2026-04-19T10:03:59Z"
     }
   ]
 }
