@@ -196,12 +196,28 @@ type FailureReason struct {
 // a capability output, token-cost report, or trace of a notable branch
 // taken during execution. Collected on ExecutionSession and emitted on
 // persistence via EvidenceSnapshot.
+//
+// The Hash and PreviousHash fields form a tamper-evident chain: each
+// record's Hash is the SHA-256 of its canonical form concatenated with
+// the previous record's hash. They are populated by
+// ExecutionSession.AppendEvidence — plugins should leave them empty
+// when constructing records; any values set by plugins are ignored
+// and overwritten. Verification is available via
+// ExecutionSession.VerifyEvidenceChain.
+//
+// Empty Hash / PreviousHash marks a record as "not part of the chain"
+// — typically a pre-1.1 persisted record loaded from an older snapshot,
+// or one whose Value could not be canonicalised to JSON. Such records
+// are treated as unverifiable (not broken) during chain verification.
 type EvidenceRecord struct {
 	Kind       string
 	Source     string
 	Value      any
 	Timestamp  int64 // Unix milliseconds. Zero means not set.
 	TokensUsed int64 // Tokens consumed by the capability emitting this evidence. Zero means unreported.
+
+	Hash         EvidenceHash // Populated by AppendEvidence; empty means unverifiable.
+	PreviousHash EvidenceHash // Populated by AppendEvidence; empty on the chain's head record.
 }
 
 // ExecutionStatus represents the state of an execution session.

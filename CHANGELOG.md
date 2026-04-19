@@ -10,6 +10,23 @@ releases; those are annotated with `BREAKING` below.
 
 ### Added
 
+- **Evidence integrity via tamper-evident hash chain.** Closes the
+  "post-emission tampering" half of the Evidence trust boundary
+  documented in docs/CONCEPTS.md. Each `EvidenceRecord` now carries
+  optional `Hash` and `PreviousHash` fields (hex-encoded SHA-256 over
+  the record's canonical JSON form concatenated with the previous
+  hash). The `ExecutionSession` aggregate assigns these at
+  `AppendEvidence` time — plugins cannot forge chain positions even if
+  they construct records with hashes pre-set; the aggregate overwrites
+  them. New aggregate method `session.VerifyEvidenceChain() error`
+  returns `*ErrChainBroken` on any mismatch (recomputed hash differs,
+  or linkage pointer is wrong). Legacy records (empty `Hash`, e.g.
+  pre-1.1 persisted snapshots) verify as unverifiable-but-not-broken,
+  so existing sessions continue to load cleanly. The `EvidenceRecorded`
+  domain event gained a `Hash` field so audit sinks see the chain.
+  Plugins reporting `TokensUsed: 0` at emission time remains the
+  documented trust boundary — that half of the vector is orthogonal to
+  hashing and stays per-deployment trust.
 - **`domain.DomainEventPublisher` port** — observability hook in the
   shape of a strict-DDD domain event channel rather than a pre-classified
   metrics interface. The kernel raises immutable event value objects
