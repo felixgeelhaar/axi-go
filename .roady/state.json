@@ -1,6 +1,6 @@
 {
   "project_id": "axi-go",
-  "version": 26,
+  "version": 29,
   "task_states": {
     "task-[post-1.0]-distributed-saga-semantics": {
       "status": "blocked",
@@ -30,8 +30,14 @@
       "elapsed_minutes": 0
     },
     "task-[post-1.0]-streaming-executionresult": {
-      "status": "blocked",
+      "status": "done",
       "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "PR #13. Optional StreamingActionExecutor interface; aggregate Emit stamps monotonic Index; ResultChunkEmitted event flows through DomainEventPublisher from PR #11."
+      ],
+      "started_at": "2026-04-19T07:39:43.993922+02:00",
+      "completed_at": "2026-04-19T07:39:46.676075+02:00",
       "elapsed_minutes": 0
     },
     "task-adoption-signal": {
@@ -112,5 +118,5 @@
       "elapsed_minutes": 0
     }
   },
-  "updated_at": "2026-04-19T07:28:16.485363+02:00"
+  "updated_at": "2026-04-19T07:39:46.676075+02:00"
 }

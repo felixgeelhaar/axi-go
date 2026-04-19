@@ -8,6 +8,15 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-19
+
+Additive release along the strict-DDD spine of the library. Three of
+the four `[post-1.0]` items on the deferred list from v1.0.0 are now
+landed; distributed sagas remains deferred as it needs a durable event
+log and at-least-once semantics that are a larger-than-library lift.
+No breaking changes — all three new capabilities compose with the
+existing surface.
+
 ### Added
 
 - **Streaming `ExecutionResult` via `StreamingActionExecutor`.**
@@ -192,5 +201,6 @@ The library will not retroactively promote any specific adopter into a
 adopt axi-go, that will be reflected in future release notes or README
 content, but 1.0 does not gate on it.
 
-[Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/felixgeelhaar/axi-go/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/felixgeelhaar/axi-go/compare/df0fda9...v1.0.0
