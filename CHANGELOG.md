@@ -8,6 +8,38 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
+### Added
+
+- **`domain.ActionInvoker` port + `OrchestratorActionExecutor`**
+  optional interface. Lets plugin code invoke other registered actions
+  as part of a composite action's work — the primitive needed for
+  sagas, fan-out/fan-in, aggregation, and pipeline-of-actions patterns
+  to ship as plugins rather than as kernel extensions.
+
+  `ActionInvoker` is a narrow domain port with a single method
+  `Invoke(ctx, action, input) (*ActionOutcome, error)`. Transport-level
+  failures (action not registered, invoker not wired) return a Go
+  error; domain-level failures (sub-action failed, rejected, or awaits
+  approval) return a non-nil `ActionOutcome` whose `Status` + `Failure`
+  fields carry the reason — axi-go's "failure is a valid outcome"
+  contract extends to sub-invocations.
+
+  `OrchestratorActionExecutor` is an additive companion to
+  `ActionExecutor`; executors that need to invoke other actions
+  implement both and the kernel prefers `ExecuteOrchestrated` when
+  a `ActionInvoker` has been wired (the default when built with
+  `axi.New()`). Each sub-invocation runs as a fresh `ExecutionSession`
+  with its own SessionID, evidence chain, events, budget, approval
+  flow, and output contract — sub-sessions never inherit or collide
+  with parent state.
+
+  This is the primitive the "sagas as plugin" pattern needs:
+  `axi-go-saga` or any third-party module can now ship a plugin that
+  contributes `saga.orchestrate`, `saga.step`, etc. as semantic
+  actions, using the kernel's existing lifecycle for each step. The
+  saga's durable-log backend stays in the plugin module (Postgres
+  outbox, Kafka, in-memory), not in axi-go core — zero-deps preserved.
+
 ## [1.1.0] - 2026-04-19
 
 Additive release along the strict-DDD spine of the library. Three of

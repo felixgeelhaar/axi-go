@@ -120,7 +120,12 @@ Features that have been considered and deferred past 1.0:
   the observability port for live delivery.
 - **Distributed sagas.** Pipeline compensation is in-process only. Full
   sagas across service boundaries require a durable event log and
-  at-least-once semantics the library does not provide.
+  at-least-once semantics the library does not provide. As of axi-go
+  1.2 the kernel exposes `ActionInvoker` and
+  `OrchestratorActionExecutor` so a saga engine can ship as a plugin —
+  a plugin module contributes `saga.*` actions that use the kernel's
+  lifecycle for each step and keeps its durable-log backend (Postgres
+  outbox, Kafka, in-memory) out of axi-go core.
 - **Evidence integrity.** ~~Plugins can currently forge
   `EvidenceRecord.TokensUsed`. A future release may hash-chain evidence
   or require a kernel-signed origin.~~ Landed for 1.1 as a

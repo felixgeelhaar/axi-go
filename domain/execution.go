@@ -54,6 +54,7 @@ type ActionExecutionService struct {
 	defaultBudget     ExecutionBudget
 	logger            Logger
 	publisher         DomainEventPublisher
+	actionInvoker     ActionInvoker
 }
 
 // NewActionExecutionService creates an ActionExecutionService.
@@ -99,6 +100,14 @@ func (s *ActionExecutionService) SetDomainEventPublisher(p DomainEventPublisher)
 		p = NopDomainEventPublisher{}
 	}
 	s.publisher = p
+}
+
+// SetActionInvoker wires an ActionInvoker for OrchestratorActionExecutor
+// implementations to compose whole actions. Pass nil to disable
+// orchestration — executors implementing OrchestratorActionExecutor
+// will fall back to the plain Execute method when no invoker is wired.
+func (s *ActionExecutionService) SetActionInvoker(inv ActionInvoker) {
+	s.actionInvoker = inv
 }
 
 // drain forwards all pending events on the session to the publisher.
@@ -219,18 +228,24 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 		return err
 	}
 
-	// If the bound executor also implements StreamingActionExecutor,
-	// prefer the streaming path so progressive chunks flow through
-	// the session (and the DomainEventPublisher) as they're produced.
-	// Otherwise fall back to the synchronous Execute contract.
+	// Prefer the most capable execution contract available on the
+	// bound executor. Orchestrator > Streaming > plain Execute. The
+	// orchestrator path requires an ActionInvoker to have been wired
+	// via SetActionInvoker — if one isn't, fall through to the next
+	// option so tests that don't configure composition still run.
 	var (
 		result   ExecutionResult
 		evidence []EvidenceRecord
 		execErr  error
 	)
-	if streamingExec, ok := executor.(StreamingActionExecutor); ok {
+	switch {
+	case s.actionInvoker != nil && isOrchestrator(executor):
+		orch := executor.(OrchestratorActionExecutor)
+		result, evidence, execErr = orch.ExecuteOrchestrated(ctx, session.Input(), invoker, s.actionInvoker)
+	case isStreaming(executor):
+		streamingExec := executor.(StreamingActionExecutor)
 		result, evidence, execErr = streamingExec.ExecuteStream(ctx, session.Input(), invoker, session)
-	} else {
+	default:
 		result, evidence, execErr = executor.Execute(ctx, session.Input(), invoker)
 	}
 	for _, e := range evidence {
@@ -397,6 +412,16 @@ func (i *boundInvoker) invokeOnce(executor CapabilityExecutor, input any) (any, 
 		return composable.ExecuteWithInvoker(i.ctx, input, i)
 	}
 	return executor.Execute(i.ctx, input)
+}
+
+func isOrchestrator(e ActionExecutor) bool {
+	_, ok := e.(OrchestratorActionExecutor)
+	return ok
+}
+
+func isStreaming(e ActionExecutor) bool {
+	_, ok := e.(StreamingActionExecutor)
+	return ok
 }
 
 // budgetKindFromError inspects the error message produced by

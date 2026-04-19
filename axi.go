@@ -99,6 +99,43 @@ func (k *Kernel) wire() {
 		ExecutionService: k.execution,
 		IDGen:            k.idGen,
 	}
+
+	// Wire the ActionInvoker so OrchestratorActionExecutor plugins
+	// (sagas, fan-out, aggregators) can invoke other registered
+	// actions through the kernel's full lifecycle. The invoker is a
+	// thin wrapper over ExecuteActionUseCase — each sub-action runs
+	// with its own fresh session, budget, and evidence chain.
+	k.execution.SetActionInvoker(&kernelActionInvoker{execute: k.execute})
+}
+
+// kernelActionInvoker is the kernel-level implementation of
+// domain.ActionInvoker. It delegates to the ExecuteActionUseCase so
+// sub-action invocations traverse the identical pipeline (rate limit,
+// validate, resolve, approve, run, validate output, events) as
+// top-level Kernel.Execute calls.
+type kernelActionInvoker struct {
+	execute *application.ExecuteActionUseCase
+}
+
+// Invoke runs action with the given input in a fresh ExecutionSession
+// and returns a domain.ActionOutcome. Go-level errors are reserved for
+// transport-level failures — domain failures surface through the
+// returned ActionOutcome's Status + Failure fields.
+func (i *kernelActionInvoker) Invoke(ctx context.Context, action domain.ActionName, input any) (*domain.ActionOutcome, error) {
+	out, err := i.execute.Execute(ctx, application.ExecuteActionInput{
+		ActionName: action,
+		Input:      input,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &domain.ActionOutcome{
+		SessionID: out.SessionID,
+		Status:    out.Status,
+		Result:    out.Result,
+		Failure:   out.Failure,
+		Evidence:  out.Evidence,
+	}, nil
 }
 
 // WithLogger sets a structured logger for the kernel. Returns the kernel for chaining.
