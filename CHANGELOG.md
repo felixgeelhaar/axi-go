@@ -8,6 +8,15 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-19
+
+Additive release. Introduces the compositional primitive that lets
+third-party plugins invoke other registered actions — the shape the
+"sagas as plugin" direction needs. No breaking changes; the new
+`OrchestratorActionExecutor` is an optional companion to the existing
+`ActionExecutor` interface, same additive pattern as 1.1's
+`StreamingActionExecutor`.
+
 ### Added
 
 - **`domain.ActionInvoker` port + `OrchestratorActionExecutor`**
@@ -233,6 +242,7 @@ The library will not retroactively promote any specific adopter into a
 adopt axi-go, that will be reflected in future release notes or README
 content, but 1.0 does not gate on it.
 
-[Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/felixgeelhaar/axi-go/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/felixgeelhaar/axi-go/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/felixgeelhaar/axi-go/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/felixgeelhaar/axi-go/compare/df0fda9...v1.0.0
