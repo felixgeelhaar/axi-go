@@ -10,6 +10,31 @@ releases; those are annotated with `BREAKING` below.
 
 ### Added
 
+- **Streaming `ExecutionResult` via `StreamingActionExecutor`.**
+  Optional companion interface to `ActionExecutor` for actions that
+  emit progressive output (LLM tokens, large-file reads, row-stream
+  queries). Executors that stream implement both interfaces; the kernel
+  prefers `ExecuteStream` when available and falls back to `Execute`
+  otherwise — no breaking change to existing executors.
+
+  New `ResultChunk` value object carries `Index`, `Kind`, `Data`,
+  `ContentType`, `At`. New `ResultStream` domain port has a single
+  `Emit(chunk)` method; `*domain.ExecutionSession` satisfies it
+  directly, so the kernel passes the session through to executors with
+  no adapter layer. The aggregate stamps `Index` monotonically under
+  its existing mutex (safe under concurrent `Emit` calls from composed
+  executors) and fills `At` with `time.Now()` when the executor leaves
+  it zero. New `ResultChunkEmitted` domain event flows through the
+  existing `DomainEventPublisher` — HTTP/SSE, gRPC-stream, and MCP-SSE
+  adapters subscribe for live delivery without polling. New
+  `ExecutionSession.ResultChunks()` accessor returns a defensive copy
+  for poll-based consumers.
+
+  `SessionSnapshot` gains an optional `result_chunks` field so streamed
+  output round-trips through persistence; pre-1.1 snapshots omit the
+  field entirely and load as sessions with zero chunks. Schema stays
+  `"1"` per the MINOR-for-optional-fields policy.
+
 - **Evidence integrity via tamper-evident hash chain.** Closes the
   "post-emission tampering" half of the Evidence trust boundary
   documented in docs/CONCEPTS.md. Each `EvidenceRecord` now carries

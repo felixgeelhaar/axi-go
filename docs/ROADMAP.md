@@ -108,9 +108,16 @@ between minor tags as the API continues to shake out.
 
 Features that have been considered and deferred past 1.0:
 
-- **Streaming `ExecutionResult`.** Current result is all-or-nothing. MCP
-  2025-06-18 supports streaming via SSE; a future iteration may add
-  `StreamingActionExecutor` without breaking the synchronous path.
+- **Streaming `ExecutionResult`.** ~~Current result is all-or-nothing.
+  MCP 2025-06-18 supports streaming via SSE; a future iteration may add
+  `StreamingActionExecutor` without breaking the synchronous path.~~
+  Landed for 1.1 as an optional `StreamingActionExecutor` interface
+  alongside `ActionExecutor`. Executors that can stream implement both;
+  the kernel prefers `ExecuteStream` when available and the session
+  accumulates `ResultChunk` value objects with monotonic indices under
+  the aggregate mutex. Each chunk raises a `ResultChunkEmitted` domain
+  event — HTTP/SSE, gRPC-stream, and MCP-SSE adapters subscribe via
+  the observability port for live delivery.
 - **Distributed sagas.** Pipeline compensation is in-process only. Full
   sagas across service boundaries require a durable event log and
   at-least-once semantics the library does not provide.

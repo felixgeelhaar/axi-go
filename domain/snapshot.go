@@ -1,9 +1,29 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Snapshot types for persistence adapters.
 // These are plain structs with exported fields for serialization.
+
+// timeToMs converts a time.Time to Unix milliseconds, returning 0 for
+// the zero value so snapshots round-trip cleanly.
+func timeToMs(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixMilli()
+}
+
+// msToTime is the inverse of timeToMs — zero ms yields a zero time.Time.
+func msToTime(ms int64) time.Time {
+	if ms == 0 {
+		return time.Time{}
+	}
+	return time.UnixMilli(ms)
+}
 
 // ActionSnapshot is the serializable form of ActionDefinition.
 type ActionSnapshot struct {
@@ -64,9 +84,21 @@ type SessionSnapshot struct {
 	RequiresApproval     bool                      `json:"requires_approval"`
 	ResolvedCapabilities []string                  `json:"resolved_capabilities"`
 	Evidence             []EvidenceSnapshot        `json:"evidence"`
+	ResultChunks         []ResultChunkSnapshot     `json:"result_chunks,omitempty"`
 	Result               *ResultSnapshot           `json:"result,omitempty"`
 	Failure              *FailureSnapshot          `json:"failure,omitempty"`
 	ApprovalDecision     *ApprovalDecisionSnapshot `json:"approval_decision,omitempty"`
+}
+
+// ResultChunkSnapshot is the serializable form of ResultChunk. Pre-1.1
+// snapshots omit the surrounding ResultChunks field entirely; that
+// loads as a session with zero chunks, matching a non-streaming session.
+type ResultChunkSnapshot struct {
+	Index       int    `json:"index"`
+	Kind        string `json:"kind,omitempty"`
+	Data        any    `json:"data,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
+	Timestamp   int64  `json:"timestamp,omitempty"`
 }
 
 // ApprovalDecisionSnapshot is the serializable form of ApprovalDecision.
@@ -240,6 +272,16 @@ func SessionFromSnapshot(s SessionSnapshot) (*ExecutionSession, error) {
 	for i, e := range s.Evidence {
 		evidence[i] = EvidenceRecord(e)
 	}
+	chunks := make([]ResultChunk, len(s.ResultChunks))
+	for i, c := range s.ResultChunks {
+		chunks[i] = ResultChunk{
+			Index:       c.Index,
+			Kind:        c.Kind,
+			Data:        c.Data,
+			ContentType: c.ContentType,
+			At:          msToTime(c.Timestamp),
+		}
+	}
 	session := &ExecutionSession{
 		id:                   ExecutionSessionID(s.ID),
 		actionName:           ActionName(s.ActionName),
@@ -248,6 +290,7 @@ func SessionFromSnapshot(s SessionSnapshot) (*ExecutionSession, error) {
 		requiresApproval:     s.RequiresApproval,
 		resolvedCapabilities: caps,
 		evidence:             evidence,
+		resultChunks:         chunks,
 	}
 	if s.Result != nil {
 		var suggestions []Suggestion
@@ -278,6 +321,19 @@ func (s *ExecutionSession) ToSnapshot() SessionSnapshot {
 	for i, e := range s.evidence {
 		evidence[i] = EvidenceSnapshot(e)
 	}
+	var chunks []ResultChunkSnapshot
+	if len(s.resultChunks) > 0 {
+		chunks = make([]ResultChunkSnapshot, len(s.resultChunks))
+		for i, c := range s.resultChunks {
+			chunks[i] = ResultChunkSnapshot{
+				Index:       c.Index,
+				Kind:        c.Kind,
+				Data:        c.Data,
+				ContentType: c.ContentType,
+				Timestamp:   timeToMs(c.At),
+			}
+		}
+	}
 	snap := SessionSnapshot{
 		Schema:               CurrentSessionSchema,
 		ID:                   string(s.id),
@@ -287,6 +343,7 @@ func (s *ExecutionSession) ToSnapshot() SessionSnapshot {
 		RequiresApproval:     s.requiresApproval,
 		ResolvedCapabilities: caps,
 		Evidence:             evidence,
+		ResultChunks:         chunks,
 	}
 	if s.result != nil {
 		var suggestions []SuggestionSnapshot

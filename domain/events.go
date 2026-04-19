@@ -162,6 +162,27 @@ func (e BudgetExceeded) OccurredAt() time.Time { return e.At }
 // EventType returns "budget.exceeded".
 func (BudgetExceeded) EventType() string { return "budget.exceeded" }
 
+// ResultChunkEmitted is raised by ExecutionSession.Emit whenever a
+// streaming action appends a chunk. Adapters subscribing to the
+// DomainEventPublisher can forward chunks to HTTP/SSE, gRPC stream,
+// or MCP SSE consumers in real time without polling the session.
+//
+// The Chunk value object carries the emission-time payload. At on the
+// event echoes Chunk.At so adapters have a single canonical timestamp
+// regardless of which field they read.
+type ResultChunkEmitted struct {
+	SessionID  ExecutionSessionID
+	ActionName ActionName
+	Chunk      ResultChunk
+	At         time.Time
+}
+
+// OccurredAt returns the event's wall-clock time.
+func (e ResultChunkEmitted) OccurredAt() time.Time { return e.At }
+
+// EventType returns "result.chunk.emitted".
+func (ResultChunkEmitted) EventType() string { return "result.chunk.emitted" }
+
 // EvidenceRecorded is raised when an evidence record is appended to an
 // ExecutionSession. EvidenceKind is the plugin-defined classifier carried
 // on EvidenceRecord.Kind; Tokens mirrors EvidenceRecord.TokensUsed (zero
