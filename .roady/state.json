@@ -1,6 +1,6 @@
 {
   "project_id": "axi-go",
-  "version": 23,
+  "version": 26,
   "task_states": {
     "task-[post-1.0]-distributed-saga-semantics": {
       "status": "blocked",
@@ -8,8 +8,14 @@
       "elapsed_minutes": 0
     },
     "task-[post-1.0]-evidence-integrity": {
-      "status": "blocked",
+      "status": "done",
       "path": "",
+      "owner": "ai-agent",
+      "evidence": [
+        "PR #12. Tamper-evident SHA-256 hash chain on ExecutionSession.Evidence. Aggregate assigns Hash/PreviousHash at AppendEvidence; VerifyEvidenceChain detects mutation. Legacy records tolerated. Composes with observability: EvidenceRecorded event carries Hash."
+      ],
+      "started_at": "2026-04-19T07:28:13.322958+02:00",
+      "completed_at": "2026-04-19T07:28:16.485363+02:00",
       "elapsed_minutes": 0
     },
     "task-[post-1.0]-observability-ports": {
@@ -106,5 +112,5 @@
       "elapsed_minutes": 0
     }
   },
-  "updated_at": "2026-04-18T18:54:51.17493+02:00"
+  "updated_at": "2026-04-19T07:28:16.485363+02:00"
 }
