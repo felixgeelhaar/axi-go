@@ -47,6 +47,11 @@ type ExecutionSession struct {
 	// Validated. Used to compute Duration on the SessionCompleted event.
 	startedAt time.Time
 
+	// resultChunks accumulates progressive output from
+	// StreamingActionExecutor implementations. Ordered by assignment,
+	// which is monotonic under the aggregate's mutex.
+	resultChunks []ResultChunk
+
 	// pendingEvents accumulates domain events raised during state
 	// transitions; drained by PullEvents.
 	pendingEvents []DomainEvent
@@ -185,6 +190,44 @@ func (s *ExecutionSession) Fail(reason FailureReason) error {
 	s.failure = &reason
 	s.recordCompletion(StatusFailed)
 	return nil
+}
+
+// Emit appends a progressive-output chunk to the session and raises a
+// ResultChunkEmitted event. Satisfies the ResultStream port, so the
+// kernel can pass a *ExecutionSession directly to
+// StreamingActionExecutor.ExecuteStream.
+//
+// The aggregate stamps Index (monotonic under the session's mutex,
+// safe for concurrent Emit calls) and fills At with time.Now() if the
+// executor left it zero. Any Index the executor pre-sets is overwritten.
+func (s *ExecutionSession) Emit(chunk ResultChunk) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	chunk.Index = len(s.resultChunks)
+	if chunk.At.IsZero() {
+		chunk.At = time.Now()
+	}
+	s.resultChunks = append(s.resultChunks, chunk)
+
+	s.recordEvent(ResultChunkEmitted{
+		SessionID:  s.id,
+		ActionName: s.actionName,
+		Chunk:      chunk,
+		At:         chunk.At,
+	})
+}
+
+// ResultChunks returns a defensive copy of all chunks emitted so far
+// by a streaming executor, in emission order. Returns an empty slice
+// (never nil) when no chunks have been emitted — consistent with
+// axi.md principle #5 on definitive empty states.
+func (s *ExecutionSession) ResultChunks() []ResultChunk {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]ResultChunk, len(s.resultChunks))
+	copy(out, s.resultChunks)
+	return out
 }
 
 // AppendEvidence adds an evidence record (append-only), stamps it with

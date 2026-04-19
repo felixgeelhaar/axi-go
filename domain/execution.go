@@ -219,7 +219,20 @@ func (s *ActionExecutionService) run(ctx context.Context, session *ExecutionSess
 		return err
 	}
 
-	result, evidence, execErr := executor.Execute(ctx, session.Input(), invoker)
+	// If the bound executor also implements StreamingActionExecutor,
+	// prefer the streaming path so progressive chunks flow through
+	// the session (and the DomainEventPublisher) as they're produced.
+	// Otherwise fall back to the synchronous Execute contract.
+	var (
+		result   ExecutionResult
+		evidence []EvidenceRecord
+		execErr  error
+	)
+	if streamingExec, ok := executor.(StreamingActionExecutor); ok {
+		result, evidence, execErr = streamingExec.ExecuteStream(ctx, session.Input(), invoker, session)
+	} else {
+		result, evidence, execErr = executor.Execute(ctx, session.Input(), invoker)
+	}
 	for _, e := range evidence {
 		session.AppendEvidence(e)
 	}
