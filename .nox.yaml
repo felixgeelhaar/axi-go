@@ -25,4 +25,9 @@ scan:
     # is the wrong tool for that job — a git-history secret scanner
     # (gitleaks, trufflehog) is the right one. Exclude the extension
     # globally so both platforms agree on what's in scope.
+    #
+    # Both patterns are needed: `**/*.md` requires at least one
+    # directory segment before the filename and so does not match a
+    # root-level README.md; `*.md` covers the root.
+    - "*.md"
     - "**/*.md"
