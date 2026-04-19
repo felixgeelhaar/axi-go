@@ -70,7 +70,12 @@ func main() {
 
 See [`example/main.go`](example/main.go) for a complete runnable example.
 For an MCP (Model Context Protocol) adapter in ~250 lines with no external
-deps, see [`example/mcp-server/`](example/mcp-server/).
+deps, see [`example/mcp-server/`](example/mcp-server/). For the adoption
+patterns around the 1.1 / 1.2 primitives — a strict-DDD subscriber on
+`DomainEventPublisher`, an evidence-chain verification endpoint, and a
+per-action token-budget guard that composes `DomainEventPublisher` and
+`RateLimiter` instead of needing a new kernel feature — see
+[`example/observability/`](example/observability/).
 
 If you want to understand the *why* behind the shape of the library — the
 reasoning that makes actions, capabilities, effect profiles, and evidence

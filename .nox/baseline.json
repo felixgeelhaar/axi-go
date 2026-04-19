@@ -352,6 +352,22 @@
       "severity": "medium",
       "reason": "Intentional: nox-scan step uses continue-on-error so annotate runs before the enforce gate fails the build",
       "created_at": "2026-04-19T10:03:59Z"
+    },
+    {
+      "fingerprint": "417815997797e2436d5dff733c409491ed097403f3cd7c62f46ff9a1d0279cb6",
+      "rule_id": "SEC-163",
+      "file_path": "example/observability/main.go",
+      "severity": "medium",
+      "reason": "False positive: match is inside a format string (tokens exhausted message), not a cryptographic key",
+      "created_at": "2026-04-19T15:31:50Z"
+    },
+    {
+      "fingerprint": "8852b18562418317e693791ecd8b066058aed8a31aef10c921b8dd2e729a2793",
+      "rule_id": "SEC-163",
+      "file_path": "example/observability/main.go",
+      "severity": "medium",
+      "reason": "False positive: match is inside a section header format string, not a cryptographic key",
+      "created_at": "2026-04-19T15:31:50Z"
     }
   ]
 }
