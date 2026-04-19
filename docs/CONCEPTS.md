@@ -107,10 +107,22 @@ Two consequences follow from this design:
 
 2. **The token budget is enforced against reported evidence, not against
    actual token consumption.** A malicious plugin can forge
-   `TokensUsed: 0`. This is a documented trust boundary — plugins are
-   trusted code in your deployment. If you need cryptographic integrity of
-   evidence, that's a separate concern for a future release (hash-chained
-   evidence, signed snapshots). Today, registration is trust.
+   `TokensUsed: 0` *at emission time*. This is a documented trust
+   boundary — plugins are trusted code in your deployment, so what they
+   report at `AppendEvidence` is what the kernel counts. Registration
+   is trust.
+
+3. **Post-emission tampering is detected.** As of axi-go 1.1, the
+   evidence trail is a tamper-evident hash chain: each
+   `EvidenceRecord` carries a SHA-256 `Hash` computed from its canonical
+   form plus the previous record's `Hash`. The `ExecutionSession`
+   aggregate assigns these hashes at `AppendEvidence` time — plugins
+   cannot forge them. Call `session.VerifyEvidenceChain()` after loading
+   a session to detect any mutation of persisted evidence; it returns
+   `*ErrChainBroken` pointing at the first offending record. Legacy
+   records (empty `Hash`, e.g. from pre-1.1 snapshots) are treated as
+   unverifiable, not broken, so existing persisted sessions continue
+   to load cleanly.
 
 ---
 

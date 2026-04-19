@@ -187,19 +187,81 @@ func (s *ExecutionSession) Fail(reason FailureReason) error {
 	return nil
 }
 
-// AppendEvidence adds an evidence record (append-only) and raises
-// EvidenceRecorded.
+// AppendEvidence adds an evidence record (append-only), stamps it with
+// its position in the tamper-evident hash chain, and raises an
+// EvidenceRecorded event.
+//
+// Any Hash / PreviousHash values the caller set on the record are
+// overwritten — only the session may assign chain positions. If the
+// record's Value cannot be canonicalised to JSON, Hash is left empty
+// and the record becomes unverifiable (see VerifyEvidenceChain).
 func (s *ExecutionSession) AppendEvidence(record EvidenceRecord) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	var previousHash EvidenceHash
+	if n := len(s.evidence); n > 0 {
+		previousHash = s.evidence[n-1].Hash
+	}
+	record.PreviousHash = previousHash
+	record.Hash = computeEvidenceHash(record, previousHash)
+
 	s.evidence = append(s.evidence, record)
 	s.recordEvent(EvidenceRecorded{
 		SessionID:    s.id,
 		ActionName:   s.actionName,
 		EvidenceKind: record.Kind,
 		Tokens:       record.TokensUsed,
+		Hash:         record.Hash,
 		At:           time.Now(),
 	})
+}
+
+// VerifyEvidenceChain validates the integrity of the session's evidence
+// trail. It recomputes each record's hash from its canonical form and
+// the declared PreviousHash and compares against the stored Hash.
+//
+// A record with empty Hash is treated as unverifiable and does not
+// break the chain — pre-1.1 persisted records loaded from snapshots
+// predate the chain and are tolerated, as are records whose Value
+// failed canonical-form encoding at AppendEvidence time.
+//
+// Returns nil on a valid chain. Returns *ErrChainBroken pointing at
+// the 0-based index of the first offending record otherwise.
+func (s *ExecutionSession) VerifyEvidenceChain() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var previousHash EvidenceHash
+	for i, record := range s.evidence {
+		if record.Hash == "" {
+			// Unverifiable record; skip without failing the chain, but
+			// reset the expected previousHash since there's no anchor.
+			previousHash = ""
+			continue
+		}
+		if record.PreviousHash != previousHash {
+			return &ErrChainBroken{
+				Index:  i,
+				Reason: fmt.Sprintf("PreviousHash mismatch: record carries %q, expected %q", record.PreviousHash, previousHash),
+			}
+		}
+		expected := computeEvidenceHash(EvidenceRecord{
+			Kind:       record.Kind,
+			Source:     record.Source,
+			Value:      record.Value,
+			Timestamp:  record.Timestamp,
+			TokensUsed: record.TokensUsed,
+		}, previousHash)
+		if expected != record.Hash {
+			return &ErrChainBroken{
+				Index:  i,
+				Reason: fmt.Sprintf("Hash mismatch: record carries %q, recomputed %q", record.Hash, expected),
+			}
+		}
+		previousHash = record.Hash
+	}
+	return nil
 }
 
 func (s *ExecutionSession) transitionTo(target ExecutionStatus) error {

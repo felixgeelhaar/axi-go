@@ -165,12 +165,15 @@ func (BudgetExceeded) EventType() string { return "budget.exceeded" }
 // EvidenceRecorded is raised when an evidence record is appended to an
 // ExecutionSession. EvidenceKind is the plugin-defined classifier carried
 // on EvidenceRecord.Kind; Tokens mirrors EvidenceRecord.TokensUsed (zero
-// when unreported).
+// when unreported); Hash is the tamper-evident chain hash assigned by
+// the aggregate (empty if the record could not be canonicalised for
+// hashing).
 type EvidenceRecorded struct {
 	SessionID    ExecutionSessionID
 	ActionName   ActionName
 	EvidenceKind string
 	Tokens       int64
+	Hash         EvidenceHash
 	At           time.Time
 }
 

@@ -114,10 +114,16 @@ Features that have been considered and deferred past 1.0:
 - **Distributed sagas.** Pipeline compensation is in-process only. Full
   sagas across service boundaries require a durable event log and
   at-least-once semantics the library does not provide.
-- **Evidence integrity.** Plugins can currently forge
+- **Evidence integrity.** ~~Plugins can currently forge
   `EvidenceRecord.TokensUsed`. A future release may hash-chain evidence
-  or require a kernel-signed origin. For 1.0, this remains a documented
-  trust boundary — see [CONCEPTS.md](CONCEPTS.md).
+  or require a kernel-signed origin.~~ Landed for 1.1 as a
+  tamper-evident SHA-256 hash chain on `ExecutionSession.Evidence`.
+  Each `EvidenceRecord` now carries `Hash` and `PreviousHash` fields,
+  populated by the aggregate at `AppendEvidence` time; call
+  `session.VerifyEvidenceChain()` to detect post-emission mutation.
+  Emission-time honesty (plugins reporting `TokensUsed` truthfully)
+  remains the documented trust boundary — see
+  [CONCEPTS.md](CONCEPTS.md).
 - **Observability ports.** ~~A `MetricsReporter` port analogous to
   `Logger` is on the list but not in the 1.0 critical path.~~
   Landed for 1.1 as `domain.DomainEventPublisher`. The port emits

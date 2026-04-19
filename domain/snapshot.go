@@ -75,13 +75,19 @@ type ApprovalDecisionSnapshot struct {
 	Rationale string `json:"rationale,omitempty"`
 }
 
-// EvidenceSnapshot is the serializable form of EvidenceRecord.
+// EvidenceSnapshot is the serializable form of EvidenceRecord. The
+// optional Hash / PreviousHash fields carry the tamper-evident chain
+// position; they are populated for records appended in axi-go 1.1 and
+// later. Pre-1.1 snapshots omit both fields, which loads as
+// unverifiable but not broken (see ExecutionSession.VerifyEvidenceChain).
 type EvidenceSnapshot struct {
-	Kind       string `json:"kind"`
-	Source     string `json:"source"`
-	Value      any    `json:"value"`
-	Timestamp  int64  `json:"timestamp,omitempty"`
-	TokensUsed int64  `json:"tokens_used,omitempty"`
+	Kind         string       `json:"kind"`
+	Source       string       `json:"source"`
+	Value        any          `json:"value"`
+	Timestamp    int64        `json:"timestamp,omitempty"`
+	TokensUsed   int64        `json:"tokens_used,omitempty"`
+	Hash         EvidenceHash `json:"hash,omitempty"`
+	PreviousHash EvidenceHash `json:"previous_hash,omitempty"`
 }
 
 // SuggestionSnapshot is the serializable form of Suggestion.
