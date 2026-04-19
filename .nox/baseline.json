@@ -368,6 +368,22 @@
       "severity": "medium",
       "reason": "False positive: match is inside a section header format string, not a cryptographic key",
       "created_at": "2026-04-19T15:31:50Z"
+    },
+    {
+      "fingerprint": "1a22dcb03abaa3a5406ad3691695a006b5529eee20b44f8c9187010457bf482f",
+      "rule_id": "DATA-001",
+      "file_path": "example/quickstart/main.go",
+      "severity": "medium",
+      "reason": "False positive: synthetic recipient email in quickstart example (alice@example.com), not real PII",
+      "created_at": "2026-04-19T16:42:23Z"
+    },
+    {
+      "fingerprint": "4776abe15e77ec9c5909202e908739f5bfdeb22ea6670748e92b23a1c5f49b44",
+      "rule_id": "DATA-001",
+      "file_path": "example/quickstart/main.go",
+      "severity": "medium",
+      "reason": "False positive: synthetic approver principal in quickstart example (ops@example.com), not real PII",
+      "created_at": "2026-04-19T16:42:23Z"
     }
   ]
 }

@@ -32,6 +32,19 @@ An action declares the capabilities it needs. axi-go resolves them, validates in
 
 You embed axi-go in your Go program. It has **no HTTP API, no daemon, no protocol assumptions** — those are delivery concerns for you to choose (HTTP, gRPC, CLI, MCP, whatever fits your stack).
 
+## What you get
+
+Every capability below is in the kernel today — no optional module, no extra dependency, no vendor lock-in:
+
+- **Effect-gated approval.** Actions declare their side-effect level (`none`, `read-local`, `write-local`, `read-external`, `write-external`). The kernel pauses any `write-external` action at `awaiting_approval` until a human approves via `kernel.Approve`. Typo catching an agent about to mass-email? Caught before the executor runs.
+- **Tamper-evident evidence trail.** Every `EvidenceRecord` appended to a session carries a SHA-256 `Hash` chained to the previous record. `session.VerifyEvidenceChain()` detects any post-emission mutation — your audit log is cryptographically replay-safe for free.
+- **Domain events stream.** Implement `domain.DomainEventPublisher` once and subscribe to every lifecycle transition: session started/completed, capability invoked/retried, budget exceeded, evidence recorded. Fan it out to Prometheus, OpenTelemetry, Kafka, a SIEM — the plugin contract is one method.
+- **Streaming results.** `StreamingActionExecutor` (optional companion to `ActionExecutor`) emits `ResultChunk` value objects progressively — LLM tokens, large-file reads, row-stream queries — while the kernel stamps monotonic indices under its mutex. Your HTTP/SSE or MCP-SSE adapter forwards chunks as they're produced.
+- **Composition via `ActionInvoker`.** Plugin code can invoke other registered actions through `OrchestratorActionExecutor` — the primitive that lets sagas, fan-out/fan-in, and pipeline-of-actions ship as plugins without pulling a durable-log backend into axi-go core.
+- **Budgets, rate limits, idempotency, output contracts, TOON encoding, truncation, help, suggestions.** Table further down.
+
+Composing these, not reinventing them in every agent service, is the whole pitch.
+
 ## Install
 
 ```bash
@@ -40,117 +53,107 @@ go get github.com/felixgeelhaar/axi-go
 
 ## 60-Second Tour
 
+A single write-external action. The kernel pauses for approval, runs after the human signs off, and exits with a verified-intact evidence trail — while a subscriber prints every lifecycle event. Full runnable source at [`example/quickstart/`](example/quickstart/); `go run ./example/quickstart` reproduces the output below.
+
 ```go
 package main
 
 import (
     "context"
     "fmt"
+
     "github.com/felixgeelhaar/axi-go"
+    "github.com/felixgeelhaar/axi-go/domain"
 )
 
-func main() {
-    // 1. Build a kernel with fluent configuration.
-    kernel := axi.New().
-        WithBudget(axi.Budget{MaxCapabilityInvocations: 100})
-
-    // 2. Wire executors and register your plugin.
-    kernel.RegisterActionExecutor("exec.greet", &greetExecutor{})
-    kernel.RegisterCapabilityExecutor("exec.upper", &upperExecutor{})
-    _ = kernel.RegisterPlugin(&greeterPlugin{})
-
-    // 3. Execute an action.
-    result, _ := kernel.Execute(context.Background(), axi.Invocation{
-        Action: "greet",
-        Input:  map[string]any{"name": "world"},
-    })
-    fmt.Println(result.Result.Data)  // → {"message": "Hello, WORLD!"}
-}
-```
-
-See [`example/main.go`](example/main.go) for a complete runnable example.
-For an MCP (Model Context Protocol) adapter in ~250 lines with no external
-deps, see [`example/mcp-server/`](example/mcp-server/). For the adoption
-patterns around the 1.1 / 1.2 primitives — a strict-DDD subscriber on
-`DomainEventPublisher`, an evidence-chain verification endpoint, and a
-per-action token-budget guard that composes `DomainEventPublisher` and
-`RateLimiter` instead of needing a new kernel feature — see
-[`example/observability/`](example/observability/).
-
-If you want to understand the *why* behind the shape of the library — the
-reasoning that makes actions, capabilities, effect profiles, and evidence
-inevitable once you accept certain premises — read
-[`docs/CONCEPTS.md`](docs/CONCEPTS.md). For 1.0 criteria, versioning, and
-deprecation policy, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
-
-## Core Concepts
-
-### Actions express *intent*
-
-```go
-action, _ := domain.NewActionDefinition(
-    "send-email",
-    "Send an email notification",
-    inputContract,   // { to: string, subject: string, body: string }
-    outputContract,  // { message_id: string }
-    requirements,    // needs smtp.send capability
-    domain.EffectProfile{Level: domain.EffectWriteExternal}, // !! external write !!
-    domain.IdempotencyProfile{IsIdempotent: false},
-)
-```
-
-Because this is `write-external`, axi-go **pauses for approval**:
-
-```go
-result, _ := kernel.Execute(ctx, axi.Invocation{Action: "send-email", Input: ...})
-// result.Status == "awaiting_approval"
-
-// A supervisor approves (or rejects):
-final, _ := kernel.Approve(ctx, string(result.SessionID))
-// final.Status == "succeeded"
-```
-
-### Capabilities express *mechanics*
-
-```go
-smtpCap, _ := domain.NewCapabilityDefinition(
-    "smtp.send",
-    "Sends an email via SMTP",
-    inputContract, outputContract,
-)
-```
-
-Capabilities are building blocks. Actions compose them. Capabilities themselves have no effect profile — the action's profile governs safety.
-
-### Plugins bundle actions + capabilities
-
-```go
 type emailPlugin struct{}
 
-func (p *emailPlugin) Contribute() (*domain.PluginContribution, error) {
-    return domain.NewPluginContribution("email.plugin",
-        []*domain.ActionDefinition{sendEmailAction},
-        []*domain.CapabilityDefinition{smtpCap},
+func (emailPlugin) Contribute() (*domain.PluginContribution, error) {
+    action, _ := domain.NewActionDefinition(
+        "send-email", "Send an email",
+        domain.NewContract([]domain.ContractField{{
+            Name: "to", Type: "string", Required: true, Description: "Recipient",
+        }}),
+        domain.EmptyContract(), nil,
+        domain.EffectProfile{Level: domain.EffectWriteExternal}, // → approval gate
+        domain.IdempotencyProfile{IsIdempotent: false},
     )
+    _ = action.BindExecutor("exec.email")
+    return domain.NewPluginContribution("email.plugin",
+        []*domain.ActionDefinition{action}, nil)
 }
 
-kernel.RegisterPlugin(&emailPlugin{})
+type emailExec struct{}
+
+func (emailExec) Execute(_ context.Context, input any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+    to := input.(map[string]any)["to"].(string)
+    return domain.ExecutionResult{Summary: "sent email to " + to},
+        []domain.EvidenceRecord{{
+            Kind:   "smtp.delivered",
+            Source: "email.plugin",
+            Value:  map[string]any{"to": to, "message_id": "msg-42"},
+        }}, nil
+}
+
+type logEvents struct{}
+
+func (logEvents) Publish(e domain.DomainEvent) { fmt.Printf("  event → %s\n", e.EventType()) }
+
+func main() {
+    kernel := axi.New().WithDomainEventPublisher(logEvents{})
+    kernel.RegisterActionExecutor("exec.email", emailExec{})
+    _ = kernel.RegisterPlugin(emailPlugin{})
+
+    ctx := context.Background()
+
+    // 1) Execute. write-external → kernel pauses before the executor runs.
+    result, _ := kernel.Execute(ctx, axi.Invocation{
+        Action: "send-email",
+        Input:  map[string]any{"to": "alice@example.com"},
+    })
+    fmt.Println("after Execute:", result.Status) // awaiting_approval
+
+    // 2) Human (or policy bot) approves. Kernel resumes the session.
+    final, _ := kernel.Approve(ctx, string(result.SessionID), domain.ApprovalDecision{
+        Principal: "ops@example.com",
+        Rationale: "recipient verified",
+    })
+    fmt.Println("after Approve:", final.Status) // succeeded
+
+    // 3) Audit. Each evidence record carries a SHA-256 hash chained to
+    //    the previous. VerifyEvidenceChain proves the trail is intact.
+    session, _ := kernel.GetSession(string(result.SessionID))
+    for _, ev := range session.Evidence() {
+        fmt.Printf("  evidence: kind=%s hash=%.10s…\n", ev.Kind, string(ev.Hash))
+    }
+    if err := session.VerifyEvidenceChain(); err == nil {
+        fmt.Println("  chain: intact")
+    }
+}
 ```
 
-### Sessions track each execution
-
-Every execution gets a session with a strict state machine:
+Output:
 
 ```
-Pending → Validated → Resolved → [AwaitingApproval] → Running → Succeeded | Failed | Rejected
+  event → session.started
+  event → session.awaiting_approval
+after Execute: awaiting_approval
+  event → evidence.recorded
+  event → session.completed
+after Approve: succeeded
+  evidence: kind=smtp.delivered hash=4a70e78708…
+  chain: intact
 ```
 
-The session persists input, resolved capabilities, evidence, and result/failure. Poll it anytime:
+Four primitives in one program: effect-gated approval, an evidence record with its tamper-evident hash, `VerifyEvidenceChain()` confirming the trail, and a `DomainEventPublisher` subscriber printing every lifecycle transition. That's the whole 1.x value proposition, compressed.
 
-```go
-session, _ := kernel.GetSession(sessionID)
-fmt.Println(session.Status(), session.Evidence())
-```
+## More examples
+
+- [`example/main.go`](example/main.go) — fuller plugin showing capability composition, suggestions, TOON, retries.
+- [`example/mcp-server/`](example/mcp-server/) — an MCP (Model Context Protocol) adapter in ~250 lines, no external deps.
+- [`example/observability/`](example/observability/) — adoption templates for `DomainEventPublisher` as a strict-DDD subscriber, evidence-chain verification as an operator endpoint, and a per-action token-budget guard that composes `DomainEventPublisher` and `RateLimiter` instead of needing a new kernel feature.
+
+To understand the *why* — the reasoning that makes actions, capabilities, effect profiles, and evidence inevitable once you accept certain premises — read [`docs/CONCEPTS.md`](docs/CONCEPTS.md). For versioning commitments and deprecation policy, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Configuring a kernel
 
