@@ -31,3 +31,12 @@ scan:
     # root-level README.md; `*.md` covers the root.
     - "*.md"
     - "**/*.md"
+
+# nox owns code-level SAST here (source-to-sink taint: injection, SSRF, path
+# traversal). Declaring the plugin REQUIRED rather than leaning on the CI
+# install step means a registry outage surfaces as a degraded scan instead of
+# silently producing zero taint findings, which is indistinguishable from
+# clean. The shared go-ci gate fails on meta.degradations.
+plugins:
+  required:
+    - nox/taint-analysis
