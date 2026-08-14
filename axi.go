@@ -77,7 +77,7 @@ func New() *Kernel {
 		actionExecReg: inmemory.NewActionExecutorRegistry(),
 		capExecReg:    inmemory.NewCapabilityExecutorRegistry(),
 		validator:     inmemory.NewContractValidator(),
-		idGen:         inmemory.NewSequentialIDGenerator(),
+		idGen:         inmemory.NewUUIDv7Generator(),
 	}
 	k.wire()
 	return k
@@ -181,6 +181,11 @@ func (k *Kernel) WithTimeout(d time.Duration) *Kernel {
 }
 
 // WithIDGenerator overrides the default session ID generator.
+//
+// The default is inmemory.UUIDv7Generator: globally unique, roughly
+// time-ordered, safe as a durable key. Override it only if you need a different
+// identifier scheme — and if sessions are persisted, whatever you supply must
+// still be unique across process restarts (#40).
 func (k *Kernel) WithIDGenerator(gen application.IDGenerator) *Kernel {
 	k.idGen = gen
 	k.execute.IDGen = gen
@@ -192,6 +197,16 @@ func (k *Kernel) WithIDGenerator(gen application.IDGenerator) *Kernel {
 // write-external sessions paused at AwaitingApproval survive process restarts
 // (the default in-memory store does not). Implementations serialize sessions
 // via ExecutionSession.ToSnapshot and reload them with SessionFromSnapshot.
+//
+// A session ID IS safe to use as a durable primary key, provided the kernel is
+// using its default generator. That is worth stating because it was not always
+// true: axi.New used to default to SequentialIDGenerator, which counts from zero
+// in memory, so a restart reissued session-1 and collided with rows a previous
+// process had already written (#40). The default is now UUIDv7Generator, which
+// is globally unique and roughly time-ordered.
+//
+// If you override it via WithIDGenerator, that guarantee is yours to keep. Never
+// pair a persistent repository with SequentialIDGenerator.
 //
 // Must be called before the first Execute. Returns the kernel for chaining.
 func (k *Kernel) WithSessionRepository(repo domain.SessionRepository) *Kernel {
