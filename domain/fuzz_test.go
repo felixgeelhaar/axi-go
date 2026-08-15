@@ -3,7 +3,6 @@ package domain_test
 import (
 	"encoding/json"
 	"testing"
-	"unicode/utf8"
 
 	"go.klarlabs.de/axi/domain"
 )
@@ -68,10 +67,6 @@ func FuzzSessionFromSnapshot(f *testing.F) {
 	f.Add([]byte{0x00, 0xff, 0xfe})
 
 	f.Fuzz(func(t *testing.T, raw []byte) {
-		if !utf8.Valid(raw) && len(raw) > 0 {
-			// json.Unmarshal tolerates invalid UTF-8 in strings poorly;
-			// we still must not panic.
-		}
 		var snap domain.SessionSnapshot
 		if err := json.Unmarshal(raw, &snap); err != nil {
 			return

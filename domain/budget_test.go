@@ -356,4 +356,3 @@ func TestErrBudgetExceeded_ErrorMethod(t *testing.T) {
 		t.Error("nil receiver Error() should be non-empty")
 	}
 }
-
