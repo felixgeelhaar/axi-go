@@ -8,31 +8,49 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
-### Added
+## [1.5.0] - 2026-08-15
 
-- **`example/saga/`** — reference "sagas as plugin" adopter pattern:
-  in-process outbox (durable log stays outside axi-go), `saga.run`
-  `OrchestratorActionExecutor`, and fail-closed handling when a nested
-  `write-external` leaf pauses at `awaiting_approval`.
-- **`example/metering/`** — adopter pattern for TokensUsed emission
-  honesty: stamp evidence from provider usage at the action-executor
-  boundary; contrast with a naive under-reporting executor. Spend
-  observers only see reported values (core trust boundary unchanged).
-
-### Documentation
-
-- Backlog cleared: emission metering closed via `example/metering/`;
-  first-party MCP package formally declined (copy/vendor
-  `example/mcp-server/` only). ROADMAP / CONCEPTS / README aligned.
+Kernel hardening, collision-free session IDs by default, coverage/fuzz
+gates, and adopter examples for sagas and TokensUsed metering. Post-1.x
+backlog cleared (metering shipped as example; first-party MCP declined).
 
 ### Changed — BREAKING
 
 - **Default session IDs are UUIDv7** — `axi.New()` now defaults to
   `inmemory.UUIDv7Generator` instead of `SequentialIDGenerator`
   (`session-N`). Sequential IDs collide across process restarts when
-  paired with a durable `SessionRepository` (#40). Override with
+  paired with a durable `SessionRepository` (#40 / #42). Override with
   `WithIDGenerator` only if you accept that risk. Tests that matched
   `session-1` style IDs must be updated.
+
+### Added
+
+- **`ExecutionSession.Abort`** — force-fail from any non-terminal status.
+- **`ExecutionStatus.IsTerminal`** and **`ActionOutcome.IsAwaitingApproval`**
+  helpers. Orchestrator godoc documents the fail-closed recommendation for
+  nested write-external pauses.
+- **`SessionApproved` domain event** — raised on `Approve`.
+- **jsonstore round-trips** for evidence hash chains and `result_chunks`.
+- **Coverage gate** — `.coverctl.yaml` (module min 72%, exclude
+  `./example/...`); CI `coverage: true`. Example packages gained smoke
+  tests so `go test -cover ./...` no longer fails on missing `covdata`.
+  `make cover` enforces `--ratchet` against `.cover/history.json`.
+- **Domain fuzz harnesses** — `FuzzNewActionName`, `FuzzNewCapabilityName`,
+  `FuzzSessionFromSnapshot`; weekly fuzz workflow covers them alongside
+  `toon.Encode`.
+- **Direct adapter tests** — `inmemory` repos/registries/logger;
+  `application` Approve/Reject/Deregister error paths.
+- **`ErrUnsupportedSchema`** — typed rejection for unknown snapshot
+  schema versions (replaces bare `fmt.Errorf`).
+- **`example/saga/`** — reference "sagas as plugin" adopter pattern:
+  in-process outbox (durable log stays outside axi-go), `saga.run`
+  `OrchestratorActionExecutor`, and fail-closed handling when a nested
+  `write-external` leaf pauses at `awaiting_approval` (#44).
+- **`example/metering/`** — adopter pattern for TokensUsed emission
+  honesty: stamp evidence from provider usage at the action-executor
+  boundary; contrast with a naive under-reporting executor. Spend
+  observers only see reported values (core trust boundary unchanged)
+  (#46).
 
 ### Fixed
 
@@ -56,31 +74,14 @@ releases; those are annotated with `BREAKING` below.
 - **Typed budget errors** — `budgetEnforcer` returns `*ErrBudgetExceeded`
   with a `Kind`; `BudgetExceeded` events no longer parse error strings.
 
-### Added
-
-- **`ExecutionSession.Abort`** — force-fail from any non-terminal status.
-- **`ExecutionStatus.IsTerminal`** and **`ActionOutcome.IsAwaitingApproval`**
-  helpers. Orchestrator godoc documents the fail-closed recommendation for
-  nested write-external pauses.
-- **`SessionApproved` domain event** — raised on `Approve`.
-- **jsonstore round-trips** for evidence hash chains and `result_chunks`.
-- **Coverage gate** — `.coverctl.yaml` (module min 72%, exclude
-  `./example/...`); CI `coverage: true`. Example packages gained smoke
-  tests so `go test -cover ./...` no longer fails on missing `covdata`.
-  `make cover` enforces `--ratchet` against `.cover/history.json`.
-- **Domain fuzz harnesses** — `FuzzNewActionName`, `FuzzNewCapabilityName`,
-  `FuzzSessionFromSnapshot`; weekly fuzz workflow covers them alongside
-  `toon.Encode`.
-- **Direct adapter tests** — `inmemory` repos/registries/logger;
-  `application` Approve/Reject/Deregister error paths.
-- **`ErrUnsupportedSchema`** — typed rejection for unknown snapshot
-  schema versions (replaces bare `fmt.Errorf`).
-
 ### Documentation
 
 - ROADMAP / backlog / SECURITY* updated for post-1.0 reality (tags through
-  v1.4.0, nox-remediate instead of Dependabot/CodeQL). CHANGELOG backfilled
+  v1.5.0, nox-remediate instead of Dependabot/CodeQL). CHANGELOG backfilled
   for 1.2.1–1.4.0.
+- Backlog cleared: emission metering closed via `example/metering/`;
+  first-party MCP package formally declined (copy/vendor
+  `example/mcp-server/` only). ROADMAP / CONCEPTS / README aligned (#46).
 
 ## [1.4.0] - 2026-06-06
 
@@ -337,7 +338,11 @@ The library will not retroactively promote any specific adopter into a
 adopt axi-go, that will be reflected in future release notes or README
 content, but 1.0 does not gate on it.
 
-[Unreleased]: https://github.com/klarlabs-studio/axi-go/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/klarlabs-studio/axi-go/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/klarlabs-studio/axi-go/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/klarlabs-studio/axi-go/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/klarlabs-studio/axi-go/compare/v1.2.1...v1.3.0
+[1.2.1]: https://github.com/klarlabs-studio/axi-go/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/klarlabs-studio/axi-go/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/klarlabs-studio/axi-go/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/klarlabs-studio/axi-go/compare/df0fda9...v1.0.0

@@ -9,15 +9,16 @@ dependency, read this first.
 ## Current status: 1.x (post-1.0)
 
 axi-go shipped `v1.0.0` and has continued with additive and occasional
-breaking minor/patch tags through **v1.4.0** (module path migration). The
-project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
-and the deprecation policy below. Breaking changes are annotated in
+breaking minor/patch tags through **v1.5.0** (UUIDv7 default session IDs,
+kernel hardening, saga/metering examples). The project follows
+[Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) and the
+deprecation policy below. Breaking changes are annotated in
 [CHANGELOG.md](../CHANGELOG.md) with a `BREAKING` tag and are typically
 preceded by a commit message starting with `feat!:` or `fix!:`.
 
-Latest released tag on the line of this document: see Git tags /
-[CHANGELOG.md](../CHANGELOG.md). Unreleased hardening on `main` is listed
-under `[Unreleased]`.
+Latest released tag on the line of this document: **v1.5.0** — see Git
+tags / [CHANGELOG.md](../CHANGELOG.md). New work on `main` lands under
+`[Unreleased]` until the next tag.
 
 ---
 
