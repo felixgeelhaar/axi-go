@@ -350,3 +350,102 @@ func TestPluginRegistration_ConflictingActionNamesRejected(t *testing.T) {
 		t.Error("expected error for conflicting action name")
 	}
 }
+
+func TestApproveSession_NotFoundAndWrongState(t *testing.T) {
+	registerUC, executeUC, actionExecReg, _ := setupFullSystem(t)
+
+	_, err := executeUC.ApproveSession(context.Background(), "missing", domain.ApprovalDecision{Principal: "ops"})
+	if err == nil {
+		t.Fatal("expected not-found error")
+	}
+
+	action, _ := domain.NewActionDefinition("needs-approval", "n",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectWriteExternal}, domain.IdempotencyProfile{})
+	_ = action.BindExecutor("exec.needs")
+	actionExecReg.Register("exec.needs", &stubActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Summary: "done"}, nil, nil
+		},
+	})
+	plugin, _ := domain.NewPluginContribution("approve.plugin", []*domain.ActionDefinition{action}, nil)
+	_ = registerUC.Execute(plugin)
+
+	out, err := executeUC.Execute(context.Background(), application.ExecuteActionInput{ActionName: "needs-approval"})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if out.Status != domain.StatusAwaitingApproval {
+		t.Fatalf("status = %s", out.Status)
+	}
+
+	_, err = executeUC.ApproveSession(context.Background(), out.SessionID, domain.ApprovalDecision{})
+	if err == nil {
+		t.Fatal("expected validation error for empty principal")
+	}
+
+	final, err := executeUC.ApproveSession(context.Background(), out.SessionID, domain.ApprovalDecision{Principal: "ops"})
+	if err != nil {
+		t.Fatalf("ApproveSession: %v", err)
+	}
+	if final.Status != domain.StatusSucceeded {
+		t.Fatalf("status = %s, want succeeded", final.Status)
+	}
+
+	_, err = executeUC.ApproveSession(context.Background(), out.SessionID, domain.ApprovalDecision{Principal: "ops"})
+	if err == nil {
+		t.Fatal("expected error approving already-completed session")
+	}
+}
+
+func TestRejectSession_HappyAndValidation(t *testing.T) {
+	registerUC, executeUC, actionExecReg, _ := setupFullSystem(t)
+	action, _ := domain.NewActionDefinition("reject-me", "n",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectWriteExternal}, domain.IdempotencyProfile{})
+	_ = action.BindExecutor("exec.reject")
+	actionExecReg.Register("exec.reject", &stubActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Summary: "should not run"}, nil, nil
+		},
+	})
+	plugin, _ := domain.NewPluginContribution("reject.plugin", []*domain.ActionDefinition{action}, nil)
+	_ = registerUC.Execute(plugin)
+
+	out, err := executeUC.Execute(context.Background(), application.ExecuteActionInput{ActionName: "reject-me"})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	_, err = executeUC.RejectSession(context.Background(), out.SessionID, domain.ApprovalDecision{})
+	if err == nil {
+		t.Fatal("expected empty principal rejection")
+	}
+
+	rejected, err := executeUC.RejectSession(context.Background(), out.SessionID, domain.ApprovalDecision{
+		Principal: "reviewer", Rationale: "too risky",
+	})
+	if err != nil {
+		t.Fatalf("RejectSession: %v", err)
+	}
+	if rejected.Status != domain.StatusRejected {
+		t.Fatalf("status = %s", rejected.Status)
+	}
+	if rejected.Failure == nil || rejected.Failure.Message != "too risky" {
+		t.Errorf("failure = %+v", rejected.Failure)
+	}
+}
+
+func TestDeregister_RemovesPlugin(t *testing.T) {
+	registerUC, _, _, _ := setupFullSystem(t)
+	plugin, _ := domain.NewPluginContribution("temp.plugin", nil, nil)
+	if err := registerUC.Execute(plugin); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if err := registerUC.Deregister("temp.plugin"); err != nil {
+		t.Fatalf("Deregister: %v", err)
+	}
+	if err := registerUC.Deregister("temp.plugin"); err == nil {
+		t.Fatal("expected not-found on second Deregister")
+	}
+}

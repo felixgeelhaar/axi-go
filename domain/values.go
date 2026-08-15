@@ -234,6 +234,19 @@ const (
 	StatusFailed           ExecutionStatus = "failed"
 )
 
+// IsTerminal reports whether s is a terminal execution status
+// (Succeeded, Failed, or Rejected). Non-terminal sessions may still
+// progress; terminal ones are immutable for further state transitions
+// other than read/persist.
+func (s ExecutionStatus) IsTerminal() bool {
+	switch s {
+	case StatusSucceeded, StatusFailed, StatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
 // ContributionStatus represents the state of a plugin contribution.
 type ContributionStatus string
 

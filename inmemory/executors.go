@@ -31,6 +31,15 @@ func (r *ActionExecutorRegistry) Register(ref domain.ActionExecutorRef, executor
 	r.executors[ref] = executor
 }
 
+// Unregister removes an action executor ref. Used by RegisterBundle
+// rollback when contribution registration fails after executors were
+// already installed.
+func (r *ActionExecutorRegistry) Unregister(ref domain.ActionExecutorRef) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.executors, ref)
+}
+
 func (r *ActionExecutorRegistry) GetActionExecutor(ref domain.ActionExecutorRef) (domain.ActionExecutor, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -57,6 +66,15 @@ func (r *CapabilityExecutorRegistry) Register(ref domain.CapabilityExecutorRef, 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.executors[ref] = executor
+}
+
+// Unregister removes a capability executor ref. Used by RegisterBundle
+// rollback when contribution registration fails after executors were
+// already installed.
+func (r *CapabilityExecutorRegistry) Unregister(ref domain.CapabilityExecutorRef) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.executors, ref)
 }
 
 func (r *CapabilityExecutorRegistry) GetCapabilityExecutor(ref domain.CapabilityExecutorRef) (domain.CapabilityExecutor, error) {

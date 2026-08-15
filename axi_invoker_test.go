@@ -357,3 +357,123 @@ func TestActionOutcome_Helpers(t *testing.T) {
 		t.Errorf("awaiting-approval outcome helpers wrong: success=%v failure=%v", pending.IsSuccess(), pending.IsFailure())
 	}
 }
+
+// --- Nested write-external approval hazard ---
+
+type writeExternalPlugin struct{}
+
+func (writeExternalPlugin) Contribute() (*domain.PluginContribution, error) {
+	a, _ := domain.NewActionDefinition(
+		"sub.write", "write-external leaf",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectWriteExternal},
+		domain.IdempotencyProfile{IsIdempotent: false},
+	)
+	_ = a.BindExecutor("exec.sub.write")
+	return domain.NewPluginContribution("sub.write.plugin",
+		[]*domain.ActionDefinition{a}, nil)
+}
+
+type subWriteExec struct{}
+
+func (subWriteExec) Execute(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	return domain.ExecutionResult{Summary: "should not run before approval"}, nil, nil
+}
+
+// naiveOrchSucceedsDespiteChildPause demonstrates the composition hazard:
+// a parent that ignores IsAwaitingApproval can Succeed while the child
+// still awaits human approval.
+type naiveOrchExec struct{}
+
+func (naiveOrchExec) Execute(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	return domain.ExecutionResult{}, nil, errors.New("naiveOrchExec.Execute should not run")
+}
+
+func (naiveOrchExec) ExecuteOrchestrated(ctx context.Context, _ any, _ domain.CapabilityInvoker, actions domain.ActionInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	out, err := actions.Invoke(ctx, "sub.write", nil)
+	if err != nil {
+		return domain.ExecutionResult{}, nil, err
+	}
+	// Intentionally ignore IsAwaitingApproval — the anti-pattern under test.
+	return domain.ExecutionResult{Data: out, Summary: "parent succeeded anyway"}, nil, nil
+}
+
+// failClosedOrch treats nested awaiting-approval as a hard failure.
+type failClosedOrchExec struct{}
+
+func (failClosedOrchExec) Execute(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	return domain.ExecutionResult{}, nil, errors.New("failClosedOrchExec.Execute should not run")
+}
+
+func (failClosedOrchExec) ExecuteOrchestrated(ctx context.Context, _ any, _ domain.CapabilityInvoker, actions domain.ActionInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+	out, err := actions.Invoke(ctx, "sub.write", nil)
+	if err != nil {
+		return domain.ExecutionResult{}, nil, err
+	}
+	if out.IsAwaitingApproval() {
+		return domain.ExecutionResult{}, nil, errors.New("nested write-external awaits approval; failing closed")
+	}
+	return domain.ExecutionResult{Data: out}, nil, nil
+}
+
+func TestOrchestrator_NestedWriteExternal_NaiveParentCanSucceed(t *testing.T) {
+	kernel := axi.New()
+	kernel.RegisterActionExecutor("exec.sub.write", subWriteExec{})
+	kernel.RegisterActionExecutor("exec.orch", naiveOrchExec{})
+	if err := kernel.RegisterPlugin(writeExternalPlugin{}); err != nil {
+		t.Fatalf("register write: %v", err)
+	}
+	if err := kernel.RegisterPlugin(orchestratorPlugin{}); err != nil {
+		t.Fatalf("register orch: %v", err)
+	}
+
+	result, err := kernel.Execute(context.Background(), axi.Invocation{Action: "orch.compose"})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Status != domain.StatusSucceeded {
+		t.Fatalf("naive parent status = %s, want succeeded (documents the hazard)", result.Status)
+	}
+	child, ok := result.Result.Data.(*domain.ActionOutcome)
+	if !ok {
+		t.Fatalf("Data type = %T, want *ActionOutcome", result.Result.Data)
+	}
+	if !child.IsAwaitingApproval() {
+		t.Fatalf("child status = %s, want awaiting_approval", child.Status)
+	}
+}
+
+func TestOrchestrator_NestedWriteExternal_FailClosed(t *testing.T) {
+	kernel := axi.New()
+	kernel.RegisterActionExecutor("exec.sub.write", subWriteExec{})
+	kernel.RegisterActionExecutor("exec.orch", failClosedOrchExec{})
+	if err := kernel.RegisterPlugin(writeExternalPlugin{}); err != nil {
+		t.Fatalf("register write: %v", err)
+	}
+	if err := kernel.RegisterPlugin(orchestratorPlugin{}); err != nil {
+		t.Fatalf("register orch: %v", err)
+	}
+
+	result, err := kernel.Execute(context.Background(), axi.Invocation{Action: "orch.compose"})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Status != domain.StatusFailed {
+		t.Fatalf("fail-closed parent status = %s, want failed", result.Status)
+	}
+}
+
+func TestActionOutcome_IsAwaitingApproval(t *testing.T) {
+	var nilO *domain.ActionOutcome
+	if nilO.IsAwaitingApproval() {
+		t.Error("nil.IsAwaitingApproval() = true")
+	}
+	pending := &domain.ActionOutcome{Status: domain.StatusAwaitingApproval}
+	if !pending.IsAwaitingApproval() {
+		t.Error("awaiting outcome IsAwaitingApproval() = false")
+	}
+	succ := &domain.ActionOutcome{Status: domain.StatusSucceeded}
+	if succ.IsAwaitingApproval() {
+		t.Error("succeeded IsAwaitingApproval() = true")
+	}
+}

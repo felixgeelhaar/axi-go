@@ -17,6 +17,8 @@
 *.cov
 coverage.out
 coverage.html
+.cover/*
+!.cover/history.json
 
 # Security scanning — track suppression baseline, ignore scan outputs
 .nox/*

@@ -52,6 +52,11 @@ func (loggingPublisher) Publish(event domain.DomainEvent) {
 	switch ev := event.(type) {
 	case domain.SessionStarted:
 		fmt.Printf("  [event] session.started        session=%s action=%s\n", ev.SessionID, ev.ActionName)
+	case domain.SessionAwaitingApproval:
+		fmt.Printf("  [event] session.awaiting_approval session=%s action=%s\n", ev.SessionID, ev.ActionName)
+	case domain.SessionApproved:
+		fmt.Printf("  [event] session.approved       session=%s action=%s principal=%s\n",
+			ev.SessionID, ev.ActionName, ev.Principal)
 	case domain.SessionCompleted:
 		fmt.Printf("  [event] session.completed      session=%s action=%s status=%s duration=%s\n",
 			ev.SessionID, ev.ActionName, ev.Status, ev.Duration.Round(time.Microsecond))

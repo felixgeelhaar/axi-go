@@ -16,11 +16,13 @@ func TestDomainEvent_EventTypes(t *testing.T) {
 	}{
 		{"SessionStarted", domain.SessionStarted{At: now}, "session.started"},
 		{"SessionAwaitingApproval", domain.SessionAwaitingApproval{At: now}, "session.awaiting_approval"},
+		{"SessionApproved", domain.SessionApproved{At: now}, "session.approved"},
 		{"SessionCompleted", domain.SessionCompleted{At: now}, "session.completed"},
 		{"CapabilityInvoked", domain.CapabilityInvoked{At: now}, "capability.invoked"},
 		{"CapabilityRetried", domain.CapabilityRetried{At: now}, "capability.retried"},
 		{"BudgetExceeded", domain.BudgetExceeded{At: now}, "budget.exceeded"},
 		{"EvidenceRecorded", domain.EvidenceRecorded{At: now}, "evidence.recorded"},
+		{"ResultChunkEmitted", domain.ResultChunkEmitted{At: now}, "result.chunk.emitted"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

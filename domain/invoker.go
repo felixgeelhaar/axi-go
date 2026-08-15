@@ -28,6 +28,12 @@ type ActionInvoker interface {
 	// for approval out-of-band. Orchestrators are NOT permitted to
 	// approve on behalf of humans — approval is always an explicit
 	// caller action via Kernel.Approve / Reject.
+	//
+	// Fail-closed recommendation: unless the orchestrator has an
+	// explicit pause/resume protocol for nested approvals, treat
+	// ActionOutcome.IsAwaitingApproval() as an error and Fail the
+	// parent. Otherwise a parent can Succeed while a child still
+	// awaits human approval — a real composition hazard.
 	Invoke(ctx context.Context, action ActionName, input any) (*ActionOutcome, error)
 }
 
@@ -58,6 +64,15 @@ func (o *ActionOutcome) IsSuccess() bool {
 // StatusRejected.
 func (o *ActionOutcome) IsFailure() bool {
 	return o != nil && (o.Status == StatusFailed || o.Status == StatusRejected)
+}
+
+// IsAwaitingApproval is a convenience: true iff Status ==
+// StatusAwaitingApproval. Orchestrators that do not explicitly handle
+// nested write-external pauses SHOULD treat this as a hard stop
+// (fail-closed) rather than Succeeding the parent while a child still
+// awaits human approval.
+func (o *ActionOutcome) IsAwaitingApproval() bool {
+	return o != nil && o.Status == StatusAwaitingApproval
 }
 
 // OrchestratorActionExecutor is the optional companion to ActionExecutor

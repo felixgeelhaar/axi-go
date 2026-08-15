@@ -167,11 +167,12 @@ no tracing library integration — and it's paid for three reasons:
    by vetting 12 transitive packages.
 
 The concrete design pattern: **port interfaces in the domain, adapters
-outside.** `domain.Logger`, `domain.RateLimiter`, `domain.ContractValidator`
-are all interfaces. `inmemory/` and `jsonstore/` provide default
-implementations. An adopter who wants Prometheus metrics defines their own
-implementation of a (future) `domain.MetricsReporter`, and the library
-itself never imports `prometheus/client_golang`.
+outside.** `domain.Logger`, `domain.RateLimiter`, `domain.ContractValidator`,
+and `domain.DomainEventPublisher` are all interfaces. `inmemory/` and
+`jsonstore/` provide default adapters. An adopter who wants Prometheus
+or OpenTelemetry classifies domain events in their own publisher
+(see `example/observability/`); the library itself never imports vendor
+clients.
 
 ---
 

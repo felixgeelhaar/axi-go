@@ -2,6 +2,7 @@ package jsonstore_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -382,5 +383,104 @@ func TestSessionStore_SaveAndGet_Failed(t *testing.T) {
 	}
 	if got.Failure() == nil || got.Failure().Code != "ERR" {
 		t.Errorf("expected failure reason, got %v", got.Failure())
+	}
+}
+
+func TestSessionStore_RoundTrip_EvidenceHashChain(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s-hash", "greet", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkRunning()
+	session.AppendEvidence(domain.EvidenceRecord{Kind: "a", Source: "x", Value: "one", TokensUsed: 1, Timestamp: 100})
+	session.AppendEvidence(domain.EvidenceRecord{Kind: "b", Source: "y", Value: "two", TokensUsed: 2, Timestamp: 200})
+	_ = session.Succeed(domain.ExecutionResult{Data: "ok"})
+
+	original := session.Evidence()
+	if original[0].Hash == "" || original[1].Hash == "" {
+		t.Fatal("expected hashes on original evidence")
+	}
+
+	if err := store.Save(session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := store.Get("s-hash")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	ev := got.Evidence()
+	if len(ev) != 2 {
+		t.Fatalf("evidence len = %d, want 2", len(ev))
+	}
+	if ev[0].Hash != original[0].Hash || ev[1].Hash != original[1].Hash {
+		t.Errorf("hash round-trip mismatch: got %+v want %+v", ev, original)
+	}
+	if ev[1].PreviousHash != ev[0].Hash {
+		t.Errorf("PreviousHash not preserved: %q vs %q", ev[1].PreviousHash, ev[0].Hash)
+	}
+	if err := got.VerifyEvidenceChain(); err != nil {
+		t.Errorf("VerifyEvidenceChain after jsonstore round-trip: %v", err)
+	}
+}
+
+func TestSessionStore_RoundTrip_ResultChunks(t *testing.T) {
+	dir := t.TempDir()
+	store, _ := jsonstore.NewSessionStore(dir)
+
+	session, _ := domain.NewExecutionSession("s-chunks", "stream", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkRunning()
+	session.Emit(domain.ResultChunk{Kind: "text", Data: "hello", ContentType: "text/plain"})
+	session.Emit(domain.ResultChunk{Kind: "text", Data: "world", ContentType: "text/plain"})
+	_ = session.Succeed(domain.ExecutionResult{Summary: "streamed"})
+
+	if err := store.Save(session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	got, err := store.Get("s-chunks")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	chunks := got.ResultChunks()
+	if len(chunks) != 2 {
+		t.Fatalf("chunks = %d, want 2", len(chunks))
+	}
+	if chunks[0].Index != 0 || chunks[1].Index != 1 {
+		t.Errorf("indices = %d,%d want 0,1", chunks[0].Index, chunks[1].Index)
+	}
+	if chunks[0].Data != "hello" || chunks[1].Data != "world" {
+		t.Errorf("chunk data = %#v", chunks)
+	}
+}
+
+func TestSessionStore_RejectsUnsupportedSchema(t *testing.T) {
+	dir := t.TempDir()
+	sessionsDir := filepath.Join(dir, "sessions")
+	if err := os.MkdirAll(sessionsDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	raw := `{
+		"schema": "99",
+		"id": "future-1",
+		"action_name": "act",
+		"status": "succeeded",
+		"requires_approval": false,
+		"resolved_capabilities": [],
+		"evidence": []
+	}`
+	if err := os.WriteFile(filepath.Join(sessionsDir, "future-1.json"), []byte(raw), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	store, _ := jsonstore.NewSessionStore(dir)
+	_, err := store.Get("future-1")
+	if err == nil {
+		t.Fatal("expected unsupported schema error")
+	}
+	var unsupported *domain.ErrUnsupportedSchema
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("error type = %T (%v), want *ErrUnsupportedSchema", err, err)
 	}
 }

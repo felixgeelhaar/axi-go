@@ -292,3 +292,42 @@ func TestErrChainBroken_IsMatchesRegardlessOfIndex(t *testing.T) {
 		t.Error("errors.Is(ErrChainBroken, &ErrChainBroken{}) = false, want true")
 	}
 }
+
+func TestSessionFromSnapshot_RejectsUnknownSchema(t *testing.T) {
+	_, err := domain.SessionFromSnapshot(domain.SessionSnapshot{
+		Schema:     "99",
+		ID:         "s-future",
+		ActionName: "act",
+		Status:     string(domain.StatusSucceeded),
+	})
+	if err == nil {
+		t.Fatal("expected error for unsupported schema")
+	}
+	var unsupported *domain.ErrUnsupportedSchema
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("error type = %T (%v), want *ErrUnsupportedSchema", err, err)
+	}
+	if unsupported.Schema != "99" || unsupported.Supported != domain.CurrentSessionSchema {
+		t.Errorf("unsupported = %+v", unsupported)
+	}
+	if !errors.Is(err, &domain.ErrUnsupportedSchema{}) {
+		t.Error("errors.Is(ErrUnsupportedSchema) = false")
+	}
+}
+
+func TestSessionFromSnapshot_AcceptsCurrentAndLegacySchema(t *testing.T) {
+	for _, schema := range []string{"", domain.CurrentSessionSchema} {
+		got, err := domain.SessionFromSnapshot(domain.SessionSnapshot{
+			Schema:     schema,
+			ID:         "s-ok",
+			ActionName: "act",
+			Status:     string(domain.StatusSucceeded),
+		})
+		if err != nil {
+			t.Fatalf("schema %q: %v", schema, err)
+		}
+		if got.ID() != "s-ok" {
+			t.Errorf("schema %q: id = %s", schema, got.ID())
+		}
+	}
+}

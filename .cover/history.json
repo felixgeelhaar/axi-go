@@ -1,0 +1,32 @@
+{
+  "entries": [
+    {
+      "timestamp": "2026-08-15T15:48:05.85711527Z",
+      "commit": "2b29ae6a59e76edb8a950d1ab92b2805a39ed7ac",
+      "branch": "cursor/kernel-gaps-hardening-a0c1",
+      "overall": 72.6,
+      "domains": {
+        "module": {
+          "name": "module",
+          "percent": 72.6,
+          "min": 72,
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-08-15T15:48:22.769977997Z",
+      "commit": "2b29ae6a59e76edb8a950d1ab92b2805a39ed7ac",
+      "branch": "cursor/kernel-gaps-hardening-a0c1",
+      "overall": 72.6,
+      "domains": {
+        "module": {
+          "name": "module",
+          "percent": 72.6,
+          "min": 72,
+          "status": "PASS"
+        }
+      }
+    }
+  ]
+}

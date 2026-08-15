@@ -38,7 +38,7 @@ Every capability below is in the kernel today — no optional module, no extra d
 
 - **Effect-gated approval.** Actions declare their side-effect level (`none`, `read-local`, `write-local`, `read-external`, `write-external`). The kernel pauses any `write-external` action at `awaiting_approval` until a human approves via `kernel.Approve`. Typo catching an agent about to mass-email? Caught before the executor runs.
 - **Tamper-evident evidence trail.** Every `EvidenceRecord` appended to a session carries a SHA-256 `Hash` chained to the previous record. `session.VerifyEvidenceChain()` detects any post-emission mutation — your audit log is cryptographically replay-safe for free.
-- **Domain events stream.** Implement `domain.DomainEventPublisher` once and subscribe to every lifecycle transition: session started/completed, capability invoked/retried, budget exceeded, evidence recorded. Fan it out to Prometheus, OpenTelemetry, Kafka, a SIEM — the plugin contract is one method.
+- **Domain events stream.** Implement `domain.DomainEventPublisher` once and subscribe to every lifecycle transition: session started/awaiting approval/approved/completed, capability invoked/retried, budget exceeded, evidence recorded. Fan it out to Prometheus, OpenTelemetry, Kafka, a SIEM — the plugin contract is one method.
 - **Streaming results.** `StreamingActionExecutor` (optional companion to `ActionExecutor`) emits `ResultChunk` value objects progressively — LLM tokens, large-file reads, row-stream queries — while the kernel stamps monotonic indices under its mutex. Your HTTP/SSE or MCP-SSE adapter forwards chunks as they're produced.
 - **Composition via `ActionInvoker`.** Plugin code can invoke other registered actions through `OrchestratorActionExecutor` — the primitive that lets sagas, fan-out/fan-in, and pipeline-of-actions ship as plugins without pulling a durable-log backend into axi-go core.
 - **Budgets, rate limits, idempotency, output contracts, TOON encoding, truncation, help, suggestions.** Table further down.
@@ -150,7 +150,7 @@ Four primitives in one program: effect-gated approval, an evidence record with i
 ## More examples
 
 - [`example/main.go`](example/main.go) — fuller plugin showing capability composition, suggestions, TOON, retries.
-- [`example/mcp-server/`](example/mcp-server/) — an MCP (Model Context Protocol) adapter in ~250 lines, no external deps.
+- [`example/mcp-server/`](example/mcp-server/) — an MCP (Model Context Protocol) adapter sketch in ~250 lines, no external deps. **Copy/vendor only — not a supported axi-go package; no stability guarantee.**
 - [`example/observability/`](example/observability/) — adoption templates for `DomainEventPublisher` as a strict-DDD subscriber, evidence-chain verification as an operator endpoint, and a per-action token-budget guard that composes `DomainEventPublisher` and `RateLimiter` instead of needing a new kernel feature.
 
 To understand the *why* — the reasoning that makes actions, capabilities, effect profiles, and evidence inevitable once you accept certain premises — read [`docs/CONCEPTS.md`](docs/CONCEPTS.md). For versioning commitments and deprecation policy, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
@@ -369,7 +369,7 @@ func executeHandler(kernel *axi.Kernel) http.HandlerFunc {
 }
 ```
 
-An MCP server adapter, a gRPC service, or a Cobra CLI would all follow the same pattern: translate protocol → kernel calls → translate response.
+An MCP server adapter, a gRPC service, or a Cobra CLI would all follow the same pattern: translate protocol → kernel calls → translate response. The `example/mcp-server/` tree is a sketch of that pattern — copy it into your own module if useful; axi-go itself will not import an MCP schema or treat that example as a versioned API.
 
 ## Development
 

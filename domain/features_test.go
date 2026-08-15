@@ -46,6 +46,43 @@ func TestRateLimiter_Blocks(t *testing.T) {
 	}
 }
 
+func TestRateLimiter_BlocksResume(t *testing.T) {
+	execSvc, actionRepo, _, actionExecs, _ := setupExecution(t)
+
+	action, _ := domain.NewActionDefinition("external-write", "Needs approval",
+		domain.EmptyContract(), domain.EmptyContract(), nil,
+		domain.EffectProfile{Level: domain.EffectWriteExternal}, domain.IdempotencyProfile{},
+	)
+	_ = action.BindExecutor("exec.external")
+	_ = actionRepo.Save(action)
+	actionExecs.executors["exec.external"] = &fakeActionExecutor{
+		fn: func(_ context.Context, _ any, _ domain.CapabilityInvoker) (domain.ExecutionResult, []domain.EvidenceRecord, error) {
+			return domain.ExecutionResult{Data: "sent"}, nil, nil
+		},
+	}
+
+	session, _ := domain.NewExecutionSession("s-resume-rl", "external-write", nil)
+	if err := execSvc.Execute(context.Background(), session); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if session.Status() != domain.StatusAwaitingApproval {
+		t.Fatalf("status = %s, want awaiting_approval", session.Status())
+	}
+	if err := session.Approve(domain.ApprovalDecision{Principal: "reviewer"}); err != nil {
+		t.Fatalf("Approve: %v", err)
+	}
+
+	execSvc.SetRateLimiter(&denyRateLimiter{})
+	err := execSvc.Resume(context.Background(), session)
+	if err == nil {
+		t.Fatal("expected rate limit error on Resume")
+	}
+	var validation *domain.ErrValidation
+	if !errors.As(err, &validation) {
+		t.Errorf("expected ErrValidation, got %T: %v", err, err)
+	}
+}
+
 // --- Finer Effect Levels ---
 
 func TestEffectProfile_IsWriteEffect(t *testing.T) {
@@ -252,6 +289,20 @@ func TestLifecyclePlugin_InitCalledWithConfig(t *testing.T) {
 	}
 	if plugin.config["key"] != "value" {
 		t.Error("config should have been passed")
+	}
+}
+
+func TestLifecyclePlugin_CloseCalledOnDeregister(t *testing.T) {
+	svc := domain.NewCompositionService(newFakeActionRepo(), newFakeCapRepo(), newFakePluginRepo())
+	plugin := &lifecyclePlugin{}
+	if err := svc.RegisterPluginWithConfig(plugin, nil); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if err := svc.DeregisterPlugin("lifecycle.plugin"); err != nil {
+		t.Fatalf("deregister: %v", err)
+	}
+	if !plugin.closeCalled {
+		t.Error("Close should have been called on deregister")
 	}
 }
 

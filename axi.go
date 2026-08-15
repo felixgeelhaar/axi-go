@@ -173,10 +173,13 @@ func (k *Kernel) WithDomainEventPublisher(p domain.DomainEventPublisher) *Kernel
 	return k
 }
 
-// WithTimeout configures a default execution timeout via the budget's MaxDuration.
-// Returns the kernel for chaining.
+// WithTimeout sets the default execution budget's MaxDuration without
+// clearing other budget fields (invocations, tokens, retries). Prefer
+// chaining After WithBudget when both are needed. Returns the kernel for chaining.
 func (k *Kernel) WithTimeout(d time.Duration) *Kernel {
-	k.execution.SetDefaultBudget(Budget{MaxDuration: d})
+	b := k.execution.DefaultBudget()
+	b.MaxDuration = d
+	k.execution.SetDefaultBudget(b)
 	return k
 }
 
