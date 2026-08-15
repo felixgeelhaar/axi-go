@@ -47,14 +47,17 @@ releases; those are annotated with `BREAKING` below.
   nested write-external pauses.
 - **`SessionApproved` domain event** — raised on `Approve`.
 - **jsonstore round-trips** for evidence hash chains and `result_chunks`.
-- **Coverage gate** — `.coverctl.yaml` (module min 70%, exclude
+- **Coverage gate** — `.coverctl.yaml` (module min 72%, exclude
   `./example/...`); CI `coverage: true`. Example packages gained smoke
   tests so `go test -cover ./...` no longer fails on missing `covdata`.
+  `make cover` enforces `--ratchet` against `.cover/history.json`.
 - **Domain fuzz harnesses** — `FuzzNewActionName`, `FuzzNewCapabilityName`,
   `FuzzSessionFromSnapshot`; weekly fuzz workflow covers them alongside
   `toon.Encode`.
 - **Direct adapter tests** — `inmemory` repos/registries/logger;
   `application` Approve/Reject/Deregister error paths.
+- **`ErrUnsupportedSchema`** — typed rejection for unknown snapshot
+  schema versions (replaces bare `fmt.Errorf`).
 
 ### Documentation
 

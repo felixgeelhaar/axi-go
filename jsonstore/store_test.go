@@ -2,6 +2,7 @@ package jsonstore_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -477,5 +478,9 @@ func TestSessionStore_RejectsUnsupportedSchema(t *testing.T) {
 	_, err := store.Get("future-1")
 	if err == nil {
 		t.Fatal("expected unsupported schema error")
+	}
+	var unsupported *domain.ErrUnsupportedSchema
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("error type = %T (%v), want *ErrUnsupportedSchema", err, err)
 	}
 }

@@ -6,9 +6,9 @@ Thanks for considering a contribution. axi-go aims to stay small, principled, an
 
 1. **Zero external dependencies.** The `domain/` package must not import anything outside the standard library. Adapters in `inmemory/`, `jsonstore/` etc. also use stdlib only.
 2. **DDD boundaries.** Respect the dependency direction: `domain` ← `application` ← `inmemory`/`jsonstore` ← `axi` (root facade) ← consumer code. The domain owns its port interfaces.
-3. **No delivery mechanisms in this repo.** axi-go is a library, not a service. No HTTP, gRPC, CLI, or MCP code belongs here. Build adapters in your own repo.
-3. **Aggregates enforce invariants.** Unexported fields, constructor validation, defensive copies, state-machine transitions.
-4. **Action failure is a valid outcome**, not a Go error. Infrastructure errors are `error`; domain failures transition the session to `Failed`.
+3. **No delivery mechanisms in core packages.** axi-go is a library, not a service. No HTTP, gRPC, CLI, or MCP code belongs in `axi` / `domain` / `application`. The `example/` tree may sketch adapters (e.g. MCP) for copy/vendor use — those examples are **not** supported packages and carry no stability guarantee.
+4. **Aggregates enforce invariants.** Unexported fields, constructor validation, defensive copies, state-machine transitions.
+5. **Action failure is a valid outcome**, not a Go error. Infrastructure errors are `error`; domain failures transition the session to `Failed`.
 
 ## Development setup
 

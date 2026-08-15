@@ -303,8 +303,15 @@ func TestSessionFromSnapshot_RejectsUnknownSchema(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unsupported schema")
 	}
-	if !strings.Contains(err.Error(), "unsupported session snapshot schema") {
-		t.Errorf("error = %v, want unsupported schema message", err)
+	var unsupported *domain.ErrUnsupportedSchema
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("error type = %T (%v), want *ErrUnsupportedSchema", err, err)
+	}
+	if unsupported.Schema != "99" || unsupported.Supported != domain.CurrentSessionSchema {
+		t.Errorf("unsupported = %+v", unsupported)
+	}
+	if !errors.Is(err, &domain.ErrUnsupportedSchema{}) {
+		t.Error("errors.Is(ErrUnsupportedSchema) = false")
 	}
 }
 

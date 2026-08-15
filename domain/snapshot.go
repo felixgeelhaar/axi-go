@@ -270,7 +270,7 @@ func SessionFromSnapshot(s SessionSnapshot) (*ExecutionSession, error) {
 		return nil, fmt.Errorf("session snapshot has empty ID")
 	}
 	if s.Schema != "" && s.Schema != CurrentSessionSchema {
-		return nil, fmt.Errorf("unsupported session snapshot schema %q (supported: %q or empty legacy)", s.Schema, CurrentSessionSchema)
+		return nil, &ErrUnsupportedSchema{Schema: s.Schema, Supported: CurrentSessionSchema}
 	}
 	caps := make([]CapabilityName, len(s.ResolvedCapabilities))
 	for i, c := range s.ResolvedCapabilities {

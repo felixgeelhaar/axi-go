@@ -150,7 +150,7 @@ Four primitives in one program: effect-gated approval, an evidence record with i
 ## More examples
 
 - [`example/main.go`](example/main.go) — fuller plugin showing capability composition, suggestions, TOON, retries.
-- [`example/mcp-server/`](example/mcp-server/) — an MCP (Model Context Protocol) adapter in ~250 lines, no external deps.
+- [`example/mcp-server/`](example/mcp-server/) — an MCP (Model Context Protocol) adapter sketch in ~250 lines, no external deps. **Copy/vendor only — not a supported axi-go package; no stability guarantee.**
 - [`example/observability/`](example/observability/) — adoption templates for `DomainEventPublisher` as a strict-DDD subscriber, evidence-chain verification as an operator endpoint, and a per-action token-budget guard that composes `DomainEventPublisher` and `RateLimiter` instead of needing a new kernel feature.
 
 To understand the *why* — the reasoning that makes actions, capabilities, effect profiles, and evidence inevitable once you accept certain premises — read [`docs/CONCEPTS.md`](docs/CONCEPTS.md). For versioning commitments and deprecation policy, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
@@ -369,7 +369,7 @@ func executeHandler(kernel *axi.Kernel) http.HandlerFunc {
 }
 ```
 
-An MCP server adapter, a gRPC service, or a Cobra CLI would all follow the same pattern: translate protocol → kernel calls → translate response.
+An MCP server adapter, a gRPC service, or a Cobra CLI would all follow the same pattern: translate protocol → kernel calls → translate response. The `example/mcp-server/` tree is a sketch of that pattern — copy it into your own module if useful; axi-go itself will not import an MCP schema or treat that example as a versioned API.
 
 ## Development
 

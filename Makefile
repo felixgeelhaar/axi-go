@@ -27,7 +27,8 @@ lint:
 cover:
 	$(GO) test ./... -coverprofile=$(COVERAGE) -count=1
 	$(GO) tool cover -func=$(COVERAGE)
-	@$(COVERCTL) record --profile $(COVERAGE) 2>/dev/null || true
+	$(COVERCTL) check --profile=$(COVERAGE) --from-profile --ratchet
+	$(COVERCTL) record --profile=$(COVERAGE)
 
 security:
 	$(NOX) scan .

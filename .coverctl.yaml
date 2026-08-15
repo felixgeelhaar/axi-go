@@ -1,12 +1,14 @@
 version: 1
 language: go
+# Local/CI floor. Shared go-ci runs `coverctl check --profile=coverage.out`.
+# `make cover` additionally enforces --ratchet against .cover/history.json.
 policy:
   default:
-    min: 70
+    min: 72
   domains:
     - name: module
       match:
         - ./...
       exclude:
         - ./example/...
-      min: 70
+      min: 72

@@ -38,8 +38,9 @@ practice, not a remaining pre-release blocker:
       schema and ship with a documented migration.
 - [x] **CI quality floor:** shared Go CI runs fmt/lint/vet/build/test
       (race) + nox security + **coverctl coverage gate** (`.coverctl.yaml`,
-      module floor 70%, examples excluded). Weekly fuzz covers `toon` and
-      domain name/snapshot harnesses.
+      module floor 72%, examples excluded). `make cover` also runs
+      `--ratchet` against committed `.cover/history.json`. Weekly fuzz
+      covers `toon` and domain name/snapshot harnesses.
 - [x] **Security posture:** cosign keyless SBOM signing on release; nox
       remediation replaces Dependabot; provenance/warden workflows in
       tree. See [SECURITY.md](../.github/SECURITY.md) and
@@ -105,8 +106,9 @@ From 1.0 onwards:
   detects post-emission tampering; plugins can still report untruthful
   `TokensUsed` at emit time — documented trust boundary in
   [CONCEPTS.md](CONCEPTS.md).
-- **MCP adapter as a package.** `example/mcp-server/` stays an example
-  (copy/vendor; no stability guarantee from axi-go itself).
+- MCP remains example-only
+  (`example/mcp-server/` is copy/vendor; no stability guarantee — see
+  README).
 - **Vendor metrics clients.** Use `DomainEventPublisher` adapters
   (`example/observability/`) rather than importing Prometheus/OTel into
   core.
