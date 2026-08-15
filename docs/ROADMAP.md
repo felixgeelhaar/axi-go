@@ -106,10 +106,12 @@ From 1.0 onwards:
 - **Emission-time evidence honesty.** The SHA-256 evidence hash chain
   detects post-emission tampering; plugins can still report untruthful
   `TokensUsed` at emit time — documented trust boundary in
-  [CONCEPTS.md](CONCEPTS.md).
-- MCP remains example-only
-  (`example/mcp-server/` is copy/vendor; no stability guarantee — see
-  README).
+  [CONCEPTS.md](CONCEPTS.md). Meter at the provider boundary in an
+  adopter adapter; see [`example/metering/`](../example/metering/).
+- **First-party MCP package.** Declined: axi-go stays zero-deps and will
+  not import an MCP schema. Use / copy
+  [`example/mcp-server/`](../example/mcp-server/) (no stability
+  guarantee — see that example's README).
 - **Vendor metrics clients.** Use `DomainEventPublisher` adapters
   (`example/observability/`) rather than importing Prometheus/OTel into
   core.

@@ -30,9 +30,5 @@ features:
       title: Adoption signal
       description: At least one production use case outside the author's own systems, OR an explicit decision documented in the v1.0.0 release notes to ship 1.0 without one. The decision-with-rationale path is acceptable; the box is checked either way once the rationale is captured.
       requirements: []
-    - id: '[post-1.x]-emission-time-evidence-metering'
-      title: '[post-1.x] Emission-time evidence metering'
-      description: Hash chain detects post-emission tampering only. Optional adapters that meter or sign TokensUsed at the capability boundary remain out of core (preserve zero-deps).
-      requirements: []
 constraints: []
 version: 0.1.0

@@ -14,6 +14,16 @@ releases; those are annotated with `BREAKING` below.
   in-process outbox (durable log stays outside axi-go), `saga.run`
   `OrchestratorActionExecutor`, and fail-closed handling when a nested
   `write-external` leaf pauses at `awaiting_approval`.
+- **`example/metering/`** — adopter pattern for TokensUsed emission
+  honesty: stamp evidence from provider usage at the action-executor
+  boundary; contrast with a naive under-reporting executor. Spend
+  observers only see reported values (core trust boundary unchanged).
+
+### Documentation
+
+- Backlog cleared: emission metering closed via `example/metering/`;
+  first-party MCP package formally declined (copy/vendor
+  `example/mcp-server/` only). ROADMAP / CONCEPTS / README aligned.
 
 ### Changed — BREAKING
 
