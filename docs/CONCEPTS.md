@@ -110,7 +110,10 @@ Two consequences follow from this design:
    `TokensUsed: 0` *at emission time*. This is a documented trust
    boundary — plugins are trusted code in your deployment, so what they
    report at `AppendEvidence` is what the kernel counts. Registration
-   is trust.
+   is trust. For honest counts, stamp `TokensUsed` from the provider's
+   usage field in your action executor (see
+   [`example/metering/`](../example/metering/)); spend observers and
+   `MaxTokens` only see what was reported.
 
 3. **Post-emission tampering is detected.** As of axi-go 1.1, the
    evidence trail is a tamper-evident hash chain: each

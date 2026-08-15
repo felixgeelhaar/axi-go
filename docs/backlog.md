@@ -3,20 +3,27 @@
 Forward-looking work only. Recently closed items are in
 [CHANGELOG.md](../CHANGELOG.md).
 
----
-
-## [post-1.x] Emission-time evidence metering
-
-Hash chain detects post-emission tampering only. Optional adapters that
-meter or sign `TokensUsed` at the capability boundary remain out of core
-(preserve zero-deps).
+There are no open post-1.x backlog items. Intentional non-goals for axi-go
+core remain listed under [ROADMAP — Out of scope](ROADMAP.md#out-of-scope-for-core-intentional).
 
 ---
 
-## [post-1.x] First-party MCP package (maybe never)
+## Done — Emission-time evidence metering (adopter pattern)
 
-`example/mcp-server/` is copy/vendor. Promote only if maintainers want
-an MCP schema dependency in-tree — currently declined in ROADMAP.
+Not in axi-go core (trust boundary unchanged). Reference sketch:
+[`example/metering/`](../example/metering/) — stamp `TokensUsed` from
+provider usage in the action executor; observers only see reported
+values. Cross-session caps remain the `DomainEventPublisher` +
+`RateLimiter` composition in [`example/observability/`](../example/observability/).
+
+---
+
+## Done — First-party MCP package (declined)
+
+Permanently declined for axi-go core: zero external deps and no MCP schema
+in-tree. Adopters copy/vendor [`example/mcp-server/`](../example/mcp-server/)
+(stdlib JSON-RPC sketch, no stability guarantee). Revisit only if the
+project deliberately accepts an MCP schema dependency — not planned.
 
 ---
 
