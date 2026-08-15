@@ -1,16 +1,7 @@
 # Backlog
 
-Forward-looking work only. Recently closed items (typed budget errors,
-coverage gate, broader fuzz, adapter unit tests) are in
+Forward-looking work only. Recently closed items are in
 [CHANGELOG.md](../CHANGELOG.md).
-
----
-
-## [post-1.x] Distributed saga reference plugin
-
-Kernel primitives exist (`ActionInvoker`). Ship or link an external
-example module that keeps a durable outbox/log out of axi-go core and
-demonstrates fail-closed nested approval handling.
 
 ---
 
@@ -26,3 +17,11 @@ meter or sign `TokensUsed` at the capability boundary remain out of core
 
 `example/mcp-server/` is copy/vendor. Promote only if maintainers want
 an MCP schema dependency in-tree — currently declined in ROADMAP.
+
+---
+
+## Done — Distributed saga reference plugin
+
+Shipped as [`example/saga/`](../example/saga/): in-process outbox +
+`saga.run` orchestrator with fail-closed nested write-external handling.
+Durable-log backends stay in the adopter module.
