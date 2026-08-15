@@ -105,7 +105,8 @@ From 1.0 onwards:
 - **Emission-time evidence honesty.** The SHA-256 evidence hash chain
   detects post-emission tampering; plugins can still report untruthful
   `TokensUsed` at emit time — documented trust boundary in
-  [CONCEPTS.md](CONCEPTS.md).
+  [CONCEPTS.md](CONCEPTS.md). Meter at the provider boundary in an
+  adopter adapter; see [`example/metering/`](../example/metering/).
 - MCP remains example-only
   (`example/mcp-server/` is copy/vendor; no stability guarantee — see
   README).

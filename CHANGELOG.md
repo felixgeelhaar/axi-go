@@ -41,6 +41,10 @@ releases; those are annotated with `BREAKING` below.
 
 ### Added
 
+- **`example/metering/`** — adopter pattern for TokensUsed emission
+  honesty: stamp evidence from provider usage at the action-executor
+  boundary; contrast with a naive under-reporting executor. Spend
+  observers only see reported values (core trust boundary unchanged).
 - **`ExecutionSession.Abort`** — force-fail from any non-terminal status.
 - **`ExecutionStatus.IsTerminal`** and **`ActionOutcome.IsAwaitingApproval`**
   helpers. Orchestrator godoc documents the fail-closed recommendation for

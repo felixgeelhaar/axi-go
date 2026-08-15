@@ -152,6 +152,7 @@ Four primitives in one program: effect-gated approval, an evidence record with i
 - [`example/main.go`](example/main.go) — fuller plugin showing capability composition, suggestions, TOON, retries.
 - [`example/mcp-server/`](example/mcp-server/) — an MCP (Model Context Protocol) adapter sketch in ~250 lines, no external deps. **Copy/vendor only — not a supported axi-go package; no stability guarantee.**
 - [`example/observability/`](example/observability/) — adoption templates for `DomainEventPublisher` as a strict-DDD subscriber, evidence-chain verification as an operator endpoint, and a per-action token-budget guard that composes `DomainEventPublisher` and `RateLimiter` instead of needing a new kernel feature.
+- [`example/metering/`](example/metering/) — TokensUsed **emission honesty** at the provider/action boundary (vs a naive under-reporting executor). Spend observers only see what executors report — metering stays outside axi-go core.
 
 To understand the *why* — the reasoning that makes actions, capabilities, effect profiles, and evidence inevitable once you accept certain premises — read [`docs/CONCEPTS.md`](docs/CONCEPTS.md). For versioning commitments and deprecation policy, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
