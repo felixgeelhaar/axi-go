@@ -2,8 +2,8 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -435,18 +435,13 @@ func isStreaming(e ActionExecutor) bool {
 	return ok
 }
 
-// budgetKindFromError inspects the error message produced by
-// budgetEnforcer.checkInvocation to recover which limit triggered. The
-// enforcer encodes the kind in the error string (it does not yet return
-// a typed error); when that is improved, this helper can be removed.
+// budgetKindFromError recovers which budget limit fired from a typed
+// ErrBudgetExceeded. Unknown errors default to invocations so a missing
+// Kind never drops the BudgetExceeded domain event entirely.
 func budgetKindFromError(err error) BudgetKind {
-	msg := err.Error()
-	switch {
-	case strings.Contains(msg, "max duration"):
-		return BudgetKindDuration
-	case strings.Contains(msg, "capability invocations"):
-		return BudgetKindInvocations
-	default:
-		return BudgetKindInvocations
+	var exceeded *ErrBudgetExceeded
+	if errors.As(err, &exceeded) && exceeded.Kind != "" {
+		return exceeded.Kind
 	}
+	return BudgetKindInvocations
 }

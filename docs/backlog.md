@@ -1,31 +1,8 @@
 # Backlog
 
-Forward-looking work only. Landed 1.1/1.2 items (streaming, evidence hash
-chain, domain events, action orchestration) live in
-[CHANGELOG.md](../CHANGELOG.md) and [ROADMAP.md](ROADMAP.md).
-
----
-
-## Re-enable CI coverage gate
-
-`.github/workflows/ci.yml` currently passes `coverage: false` into the
-shared Go CI workflow. Turn the gate back on (target ≥60% with regression
-fail) once the shared workflow threshold is confirmed green on main.
-
----
-
-## Typed budget errors
-
-`budgetEnforcer` still encodes limit kind in error strings;
-`budgetKindFromError` parses them. Replace with typed errors so
-`BudgetExceeded` classification cannot drift from message text.
-
----
-
-## Broader fuzz surface
-
-Fuzz today covers `toon.Encode`. Candidates: `SessionFromSnapshot`,
-name validators, contract validation inputs.
+Forward-looking work only. Recently closed items (typed budget errors,
+coverage gate, broader fuzz, adapter unit tests) are in
+[CHANGELOG.md](../CHANGELOG.md).
 
 ---
 

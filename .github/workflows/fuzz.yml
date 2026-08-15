@@ -30,6 +30,29 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: fuzz-failures
+          name: fuzz-failures-toon
           path: toon/testdata/fuzz/FuzzEncode/
+          if-no-files-found: ignore
+
+  fuzz-domain:
+    name: Fuzz domain validators + snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26"
+      - name: Fuzz action names
+        run: go test ./domain -run=^$ -fuzz=FuzzNewActionName -fuzztime=2m
+      - name: Fuzz capability names
+        run: go test ./domain -run=^$ -fuzz=FuzzNewCapabilityName -fuzztime=1m
+      - name: Fuzz session snapshots
+        run: go test ./domain -run=^$ -fuzz=FuzzSessionFromSnapshot -fuzztime=2m
+      - name: Upload new failing inputs (if any)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-failures-domain
+          path: domain/testdata/fuzz/
           if-no-files-found: ignore

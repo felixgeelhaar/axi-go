@@ -37,10 +37,9 @@ practice, not a remaining pre-release blocker:
       non-empty schemas are rejected. Future incompatible formats bump the
       schema and ship with a documented migration.
 - [x] **CI quality floor:** shared Go CI runs fmt/lint/vet/build/test
-      (race on release path) + nox security. **Coverage gate is currently
-      disabled** in `.github/workflows/ci.yml` (`coverage: false`);
-      re-enable when the shared workflow threshold is ready. Fuzz for
-      `toon.Encode` runs on a weekly schedule (not nightly).
+      (race) + nox security + **coverctl coverage gate** (`.coverctl.yaml`,
+      module floor 70%, examples excluded). Weekly fuzz covers `toon` and
+      domain name/snapshot harnesses.
 - [x] **Security posture:** cosign keyless SBOM signing on release; nox
       remediation replaces Dependabot; provenance/warden workflows in
       tree. See [SECURITY.md](../.github/SECURITY.md) and

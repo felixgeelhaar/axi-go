@@ -24,6 +24,24 @@ type ExecutionBudget struct {
 	RetryBackoff             time.Duration // Initial backoff between retries; doubled each attempt (exponential).
 }
 
+// ErrBudgetExceeded is returned when an ExecutionBudget limit is hit
+// during capability invocation. Kind identifies which limit fired so
+// callers (and BudgetExceeded domain events) do not parse error text.
+type ErrBudgetExceeded struct {
+	Kind    BudgetKind
+	Message string
+}
+
+func (e *ErrBudgetExceeded) Error() string {
+	if e == nil {
+		return "execution budget exceeded"
+	}
+	if e.Message != "" {
+		return e.Message
+	}
+	return fmt.Sprintf("execution budget exceeded: %s", e.Kind)
+}
+
 // budgetEnforcer tracks usage against a budget during execution.
 type budgetEnforcer struct {
 	budget      ExecutionBudget
@@ -43,11 +61,17 @@ func (b *budgetEnforcer) checkInvocation() error {
 	if b.budget.MaxCapabilityInvocations > 0 {
 		count := b.invocations.Add(1)
 		if int(count) > b.budget.MaxCapabilityInvocations {
-			return fmt.Errorf("execution budget exceeded: max %d capability invocations", b.budget.MaxCapabilityInvocations)
+			return &ErrBudgetExceeded{
+				Kind:    BudgetKindInvocations,
+				Message: fmt.Sprintf("execution budget exceeded: max %d capability invocations", b.budget.MaxCapabilityInvocations),
+			}
 		}
 	}
 	if b.budget.MaxDuration > 0 && time.Since(b.startTime) > b.budget.MaxDuration {
-		return fmt.Errorf("execution budget exceeded: max duration %v", b.budget.MaxDuration)
+		return &ErrBudgetExceeded{
+			Kind:    BudgetKindDuration,
+			Message: fmt.Sprintf("execution budget exceeded: max duration %v", b.budget.MaxDuration),
+		}
 	}
 	return nil
 }

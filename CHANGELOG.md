@@ -36,6 +36,8 @@ releases; those are annotated with `BREAKING` below.
   the same rate limiter as initial `Execute`.
 - **Unknown snapshot schemas** — `SessionFromSnapshot` rejects non-empty
   schemas other than `CurrentSessionSchema` (`"1"`); empty remains legacy.
+- **Typed budget errors** — `budgetEnforcer` returns `*ErrBudgetExceeded`
+  with a `Kind`; `BudgetExceeded` events no longer parse error strings.
 
 ### Added
 
@@ -45,12 +47,20 @@ releases; those are annotated with `BREAKING` below.
   nested write-external pauses.
 - **`SessionApproved` domain event** — raised on `Approve`.
 - **jsonstore round-trips** for evidence hash chains and `result_chunks`.
+- **Coverage gate** — `.coverctl.yaml` (module min 70%, exclude
+  `./example/...`); CI `coverage: true`. Example packages gained smoke
+  tests so `go test -cover ./...` no longer fails on missing `covdata`.
+- **Domain fuzz harnesses** — `FuzzNewActionName`, `FuzzNewCapabilityName`,
+  `FuzzSessionFromSnapshot`; weekly fuzz workflow covers them alongside
+  `toon.Encode`.
+- **Direct adapter tests** — `inmemory` repos/registries/logger;
+  `application` Approve/Reject/Deregister error paths.
 
 ### Documentation
 
 - ROADMAP / backlog / SECURITY* updated for post-1.0 reality (tags through
-  v1.4.0, nox-remediate instead of Dependabot/CodeQL, honest CI coverage
-  gate status). CHANGELOG backfilled for 1.2.1–1.4.0.
+  v1.4.0, nox-remediate instead of Dependabot/CodeQL). CHANGELOG backfilled
+  for 1.2.1–1.4.0.
 
 ## [1.4.0] - 2026-06-06
 

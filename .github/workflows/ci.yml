@@ -27,4 +27,4 @@ jobs:
       pull-requests: write
     secrets: inherit
     with:
-      coverage: false
+      coverage: true

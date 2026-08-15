@@ -1,0 +1,12 @@
+version: 1
+language: go
+policy:
+  default:
+    min: 70
+  domains:
+    - name: module
+      match:
+        - ./...
+      exclude:
+        - ./example/...
+      min: 70

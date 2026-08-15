@@ -38,13 +38,5 @@ features:
       title: '[post-1.x] Emission-time evidence metering'
       description: Hash chain detects post-emission tampering only. Optional adapters that meter or sign TokensUsed at the capability boundary remain out of core (preserve zero-deps).
       requirements: []
-    - id: re-enable-ci-coverage-gate
-      title: Re-enable CI coverage gate
-      description: ci.yml currently passes coverage false into shared Go CI. Turn the gate back on (target ≥60%) once the shared workflow threshold is confirmed green on main.
-      requirements: []
-    - id: typed-budget-errors
-      title: Typed budget errors
-      description: Replace budgetEnforcer string errors with typed errors so BudgetExceeded classification cannot drift from message text.
-      requirements: []
 constraints: []
 version: 0.1.0
