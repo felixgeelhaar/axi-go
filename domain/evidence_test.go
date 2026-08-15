@@ -292,3 +292,35 @@ func TestErrChainBroken_IsMatchesRegardlessOfIndex(t *testing.T) {
 		t.Error("errors.Is(ErrChainBroken, &ErrChainBroken{}) = false, want true")
 	}
 }
+
+func TestSessionFromSnapshot_RejectsUnknownSchema(t *testing.T) {
+	_, err := domain.SessionFromSnapshot(domain.SessionSnapshot{
+		Schema:     "99",
+		ID:         "s-future",
+		ActionName: "act",
+		Status:     string(domain.StatusSucceeded),
+	})
+	if err == nil {
+		t.Fatal("expected error for unsupported schema")
+	}
+	if !strings.Contains(err.Error(), "unsupported session snapshot schema") {
+		t.Errorf("error = %v, want unsupported schema message", err)
+	}
+}
+
+func TestSessionFromSnapshot_AcceptsCurrentAndLegacySchema(t *testing.T) {
+	for _, schema := range []string{"", domain.CurrentSessionSchema} {
+		got, err := domain.SessionFromSnapshot(domain.SessionSnapshot{
+			Schema:     schema,
+			ID:         "s-ok",
+			ActionName: "act",
+			Status:     string(domain.StatusSucceeded),
+		})
+		if err != nil {
+			t.Fatalf("schema %q: %v", schema, err)
+		}
+		if got.ID() != "s-ok" {
+			t.Errorf("schema %q: id = %s", schema, got.ID())
+		}
+	}
+}

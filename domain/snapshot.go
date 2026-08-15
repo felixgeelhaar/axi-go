@@ -260,9 +260,17 @@ func (p *PluginContribution) ToSnapshot() PluginSnapshot {
 
 // SessionFromSnapshot reconstructs an ExecutionSession from a serializable snapshot.
 // This bypasses normal state transitions to restore persisted state.
+//
+// Schema handling: empty Schema is accepted as a pre-1.0 legacy snapshot.
+// Schema equal to CurrentSessionSchema ("1") is the supported 1.x format.
+// Any other non-empty Schema is rejected so future incompatible formats
+// cannot silently load into an older binary.
 func SessionFromSnapshot(s SessionSnapshot) (*ExecutionSession, error) {
 	if s.ID == "" {
 		return nil, fmt.Errorf("session snapshot has empty ID")
+	}
+	if s.Schema != "" && s.Schema != CurrentSessionSchema {
+		return nil, fmt.Errorf("unsupported session snapshot schema %q (supported: %q or empty legacy)", s.Schema, CurrentSessionSchema)
 	}
 	caps := make([]CapabilityName, len(s.ResolvedCapabilities))
 	for i, c := range s.ResolvedCapabilities {

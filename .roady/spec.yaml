@@ -30,21 +30,21 @@ features:
       title: Adoption signal
       description: At least one production use case outside the author's own systems, OR an explicit decision documented in the v1.0.0 release notes to ship 1.0 without one. The decision-with-rationale path is acceptable; the box is checked either way once the rationale is captured.
       requirements: []
-    - id: '[post-1.0]-streaming-executionresult'
-      title: '[post-1.0] Streaming ExecutionResult'
-      description: Deferred past 1.0. Current ExecutionResult is all-or-nothing. MCP 2025-06-18 supports streaming via SSE; future StreamingActionExecutor interface can be added additively without breaking the synchronous path.
+    - id: '[post-1.x]-distributed-saga-reference-plugin'
+      title: '[post-1.x] Distributed saga reference plugin'
+      description: Kernel primitives exist (ActionInvoker). Ship or link an external example module that keeps a durable outbox/log out of axi-go core and demonstrates fail-closed nested approval handling.
       requirements: []
-    - id: '[post-1.0]-distributed-saga-semantics'
-      title: '[post-1.0] Distributed saga semantics'
-      description: Deferred past 1.0. Pipeline compensation is in-process only. Full distributed sagas across service boundaries require a durable event log and at-least-once semantics the library does not provide. In-process saga shape is intentional as a migration path.
+    - id: '[post-1.x]-emission-time-evidence-metering'
+      title: '[post-1.x] Emission-time evidence metering'
+      description: Hash chain detects post-emission tampering only. Optional adapters that meter or sign TokensUsed at the capability boundary remain out of core (preserve zero-deps).
       requirements: []
-    - id: '[post-1.0]-evidence-integrity'
-      title: '[post-1.0] Evidence integrity'
-      description: Deferred past 1.0. Plugins can currently forge EvidenceRecord.TokensUsed — documented trust boundary in CONCEPTS.md. A future release may hash-chain evidence or require kernel-signed origin for production-grade audit integrity.
+    - id: re-enable-ci-coverage-gate
+      title: Re-enable CI coverage gate
+      description: ci.yml currently passes coverage false into shared Go CI. Turn the gate back on (target ≥60%) once the shared workflow threshold is confirmed green on main.
       requirements: []
-    - id: '[post-1.0]-observability-ports'
-      title: '[post-1.0] Observability ports'
-      description: Deferred past 1.0. A MetricsReporter port analogous to domain.Logger would let adopters plumb Prometheus/OpenTelemetry without axi-go importing vendor clients. Zero-impl by default to preserve the zero-deps story.
+    - id: typed-budget-errors
+      title: Typed budget errors
+      description: Replace budgetEnforcer string errors with typed errors so BudgetExceeded classification cannot drift from message text.
       requirements: []
 constraints: []
 version: 0.1.0

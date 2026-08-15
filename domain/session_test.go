@@ -138,3 +138,106 @@ func TestExecutionSession_EvidenceAppendOnly(t *testing.T) {
 		t.Error("evidence order not preserved")
 	}
 }
+
+func TestExecutionStatus_IsTerminal(t *testing.T) {
+	terminal := []domain.ExecutionStatus{
+		domain.StatusSucceeded, domain.StatusFailed, domain.StatusRejected,
+	}
+	for _, s := range terminal {
+		if !s.IsTerminal() {
+			t.Errorf("%s.IsTerminal() = false, want true", s)
+		}
+	}
+	nonTerminal := []domain.ExecutionStatus{
+		domain.StatusPending, domain.StatusValidated, domain.StatusResolved,
+		domain.StatusAwaitingApproval, domain.StatusRunning,
+	}
+	for _, s := range nonTerminal {
+		if s.IsTerminal() {
+			t.Errorf("%s.IsTerminal() = true, want false", s)
+		}
+	}
+}
+
+func TestExecutionSession_Abort_FromNonTerminal(t *testing.T) {
+	statuses := []struct {
+		name  string
+		setup func(*domain.ExecutionSession)
+	}{
+		{"Pending", func(*domain.ExecutionSession) {}},
+		{"Validated", func(s *domain.ExecutionSession) { _ = s.MarkValidated() }},
+		{"Resolved", func(s *domain.ExecutionSession) {
+			_ = s.MarkValidated()
+			_ = s.MarkResolved(nil)
+		}},
+		{"AwaitingApproval", func(s *domain.ExecutionSession) {
+			_ = s.MarkValidated()
+			_ = s.MarkResolved(nil)
+			_ = s.MarkAwaitingApproval()
+		}},
+		{"Running", func(s *domain.ExecutionSession) {
+			_ = s.MarkValidated()
+			_ = s.MarkResolved(nil)
+			_ = s.MarkRunning()
+		}},
+	}
+	for _, tt := range statuses {
+		t.Run(tt.name, func(t *testing.T) {
+			session, _ := domain.NewExecutionSession(domain.ExecutionSessionID("abort-"+tt.name), "act", nil)
+			tt.setup(session)
+			if err := session.Abort(domain.FailureReason{Code: "ABORT", Message: "stop"}); err != nil {
+				t.Fatalf("Abort: %v", err)
+			}
+			if session.Status() != domain.StatusFailed {
+				t.Errorf("status = %s, want failed", session.Status())
+			}
+			if f := session.Failure(); f == nil || f.Code != "ABORT" {
+				t.Errorf("failure = %+v, want ABORT", f)
+			}
+		})
+	}
+}
+
+func TestExecutionSession_Abort_IdempotentOnTerminal(t *testing.T) {
+	session, _ := domain.NewExecutionSession("abort-done", "act", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkRunning()
+	_ = session.Succeed(domain.ExecutionResult{Summary: "ok"})
+
+	if err := session.Abort(domain.FailureReason{Code: "ABORT", Message: "late"}); err != nil {
+		t.Fatalf("Abort on terminal: %v", err)
+	}
+	if session.Status() != domain.StatusSucceeded {
+		t.Errorf("status = %s, want succeeded (unchanged)", session.Status())
+	}
+	if session.Failure() != nil {
+		t.Errorf("failure should remain nil on succeeded session, got %+v", session.Failure())
+	}
+}
+
+func TestExecutionSession_Approve_RaisesSessionApproved(t *testing.T) {
+	session, _ := domain.NewExecutionSession("s-approved", "act", nil)
+	_ = session.MarkValidated()
+	_ = session.MarkResolved(nil)
+	_ = session.MarkAwaitingApproval()
+	_ = session.PullEvents()
+
+	if err := session.Approve(domain.ApprovalDecision{Principal: "ops@example.com"}); err != nil {
+		t.Fatalf("Approve: %v", err)
+	}
+	events := session.PullEvents()
+	if len(events) != 1 {
+		t.Fatalf("events = %d, want 1", len(events))
+	}
+	approved, ok := events[0].(domain.SessionApproved)
+	if !ok {
+		t.Fatalf("event = %T, want SessionApproved", events[0])
+	}
+	if approved.Principal != "ops@example.com" {
+		t.Errorf("Principal = %q", approved.Principal)
+	}
+	if approved.EventType() != "session.approved" {
+		t.Errorf("EventType = %q", approved.EventType())
+	}
+}

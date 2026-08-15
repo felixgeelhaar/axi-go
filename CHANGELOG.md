@@ -8,6 +8,71 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
+### Changed — BREAKING
+
+- **Default session IDs are UUIDv7** — `axi.New()` now defaults to
+  `inmemory.UUIDv7Generator` instead of `SequentialIDGenerator`
+  (`session-N`). Sequential IDs collide across process restarts when
+  paired with a durable `SessionRepository` (#40). Override with
+  `WithIDGenerator` only if you accept that risk. Tests that matched
+  `session-1` style IDs must be updated.
+
+### Fixed
+
+- **`ExecuteAsync` stuck sessions** — panics before `Running` and early
+  Execute errors (missing action, rate limit, validation) no longer leave
+  sessions in a non-terminal state. Recovery uses `ExecutionSession.Abort`
+  when `Fail` is not legal; pollers observe `Failed` with `PANIC` or
+  `EXECUTION_ERROR`.
+- **`WithTimeout` budget clobber** — now merges into the existing default
+  budget (preserves invocations / tokens / retries) instead of replacing
+  the whole `ExecutionBudget`.
+- **`RegisterBundle` executor rollback** — on contribution conflict,
+  previously registered executors are unregistered when the registry
+  supports `Unregister` (inmemory adapters do).
+- **`LifecyclePlugin.Close`** — retained on register and invoked on
+  `DeregisterPlugin`.
+- **Rate limit on `Resume`** — approved write-external work is subject to
+  the same rate limiter as initial `Execute`.
+- **Unknown snapshot schemas** — `SessionFromSnapshot` rejects non-empty
+  schemas other than `CurrentSessionSchema` (`"1"`); empty remains legacy.
+
+### Added
+
+- **`ExecutionSession.Abort`** — force-fail from any non-terminal status.
+- **`ExecutionStatus.IsTerminal`** and **`ActionOutcome.IsAwaitingApproval`**
+  helpers. Orchestrator godoc documents the fail-closed recommendation for
+  nested write-external pauses.
+- **`SessionApproved` domain event** — raised on `Approve`.
+- **jsonstore round-trips** for evidence hash chains and `result_chunks`.
+
+### Documentation
+
+- ROADMAP / backlog / SECURITY* updated for post-1.0 reality (tags through
+  v1.4.0, nox-remediate instead of Dependabot/CodeQL, honest CI coverage
+  gate status). CHANGELOG backfilled for 1.2.1–1.4.0.
+
+## [1.4.0] - 2026-06-06
+
+### Changed — BREAKING
+
+- **Module path** migrated to `go.klarlabs.de/axi` (was
+  `github.com/klarlabs-studio/axi-go`). Update imports accordingly.
+
+## [1.3.0] - 2026-06-04
+
+### Added
+
+- **`Kernel.WithSessionRepository`** — swap the default in-memory session
+  store for a durable adapter (e.g. Postgres) so write-external sessions
+  paused at `AwaitingApproval` survive process restarts.
+
+## [1.2.1] - 2026-06-02
+
+### Fixed
+
+- Release workflow: pin cosign CLI so SBOM signing succeeds.
+
 ## [1.2.0] - 2026-04-19
 
 Additive release. Introduces the compositional primitive that lets

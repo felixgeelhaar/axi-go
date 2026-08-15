@@ -63,7 +63,7 @@ func (uc *ExecuteActionUseCase) Execute(ctx context.Context, input ExecuteAction
 
 // ExecuteAsync creates a session and runs execution in the background.
 // Returns immediately with the session in Pending status.
-// Poll GET /sessions/{id} for the result.
+// Poll via Kernel.GetSession (or any SessionRepository.Get) for the result.
 func (uc *ExecuteActionUseCase) ExecuteAsync(ctx context.Context, input ExecuteActionInput) (*ExecuteActionOutput, error) {
 	sessionID := uc.IDGen.GenerateSessionID()
 
@@ -84,12 +84,28 @@ func (uc *ExecuteActionUseCase) ExecuteAsync(ctx context.Context, input ExecuteA
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				_ = session.Fail(domain.FailureReason{Code: "PANIC", Message: fmt.Sprintf("%v", r)})
+				reason := domain.FailureReason{Code: "PANIC", Message: fmt.Sprintf("%v", r)}
+				// Fail only works from Running; Abort covers pre-Running panics
+				// so the session never sticks in a non-terminal state.
+				if err := session.Fail(reason); err != nil {
+					_ = session.Abort(reason)
+				}
 			}
 			_ = uc.SessionRepo.Save(session)
 		}()
 		bgCtx := context.WithoutCancel(ctx)
-		_ = uc.ExecutionService.Execute(bgCtx, session)
+		if err := uc.ExecutionService.Execute(bgCtx, session); err != nil {
+			// Early Execute errors (rate limit, validation, not found) leave
+			// the session non-terminal. Persist a Failed outcome so pollers
+			// observe completion rather than an eternal Pending/Validated.
+			if !session.Status().IsTerminal() && session.Status() != domain.StatusAwaitingApproval {
+				_ = session.Abort(domain.FailureReason{
+					Code:    "EXECUTION_ERROR",
+					Message: err.Error(),
+				})
+			}
+			_ = uc.SessionRepo.Save(session)
+		}
 	}()
 
 	return output, nil

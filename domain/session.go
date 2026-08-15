@@ -123,7 +123,7 @@ func (s *ExecutionSession) MarkAwaitingApproval() error {
 	return nil
 }
 
-// Approve transitions AwaitingApproval → Running.
+// Approve transitions AwaitingApproval → Running and raises SessionApproved.
 // The decision must include a non-empty Principal identifying who approved.
 func (s *ExecutionSession) Approve(decision ApprovalDecision) error {
 	if decision.Principal == "" {
@@ -136,6 +136,12 @@ func (s *ExecutionSession) Approve(decision ApprovalDecision) error {
 	}
 	s.approvalDecision = &decision
 	s.status = StatusRunning
+	s.recordEvent(SessionApproved{
+		SessionID:  s.id,
+		ActionName: s.actionName,
+		Principal:  decision.Principal,
+		At:         time.Now(),
+	})
 	return nil
 }
 
@@ -185,6 +191,22 @@ func (s *ExecutionSession) Fail(reason FailureReason) error {
 	defer s.mu.Unlock()
 	if s.status != StatusRunning {
 		return fmt.Errorf("cannot transition from %s to %s", s.status, StatusFailed)
+	}
+	s.status = StatusFailed
+	s.failure = &reason
+	s.recordCompletion(StatusFailed)
+	return nil
+}
+
+// Abort force-fails a session from any non-terminal status. Used when
+// async panic recovery or a pre-Running Execute error would otherwise
+// leave the session stuck in Pending/Validated/Resolved/AwaitingApproval.
+// Already-terminal sessions are left unchanged and return nil (idempotent).
+func (s *ExecutionSession) Abort(reason FailureReason) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.status.IsTerminal() {
+		return nil
 	}
 	s.status = StatusFailed
 	s.failure = &reason

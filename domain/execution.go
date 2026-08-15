@@ -92,6 +92,11 @@ func (s *ActionExecutionService) SetDefaultBudget(budget ExecutionBudget) {
 	s.defaultBudget = budget
 }
 
+// DefaultBudget returns the currently configured default execution budget.
+func (s *ActionExecutionService) DefaultBudget() ExecutionBudget {
+	return s.defaultBudget
+}
+
 // SetDomainEventPublisher configures the publisher that receives domain
 // events raised during execution. Pass NopDomainEventPublisher (the
 // default) to discard events.
@@ -184,11 +189,17 @@ func (s *ActionExecutionService) Execute(ctx context.Context, session *Execution
 
 // Resume continues execution of a session that was approved.
 // The session must be in Running status (after Approve() was called).
+// Rate limiting is re-checked here so approved write-external work is
+// subject to the same throttle as the initial Execute.
 func (s *ActionExecutionService) Resume(ctx context.Context, session *ExecutionSession) error {
 	defer s.drain(session)
 
 	if session.Status() != StatusRunning {
 		return fmt.Errorf("cannot resume session in %s status", session.Status())
+	}
+
+	if err := s.rateLimiter.Allow(session.ActionName()); err != nil {
+		return &ErrValidation{Message: fmt.Sprintf("rate limited: %v", err)}
 	}
 
 	action, err := s.actionRepo.GetByName(session.ActionName())

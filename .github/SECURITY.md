@@ -2,21 +2,25 @@
 
 ## Supported Versions
 
-axi-go is in active development. Security fixes are provided for the latest release on `main`.
+Security fixes are provided for the latest release on `main`.
 
 | Version | Supported |
 |---------|-----------|
-| main    | ✅        |
-| older   | ❌        |
+| main / latest 1.x tag | ✅ |
+| older | ❌ |
 
 ## Reporting a Vulnerability
 
 **Do not open a public issue for security vulnerabilities.**
 
-Instead, report privately via one of these channels:
+Report privately via:
 
-1. **GitHub Security Advisories** (preferred): Use the [Report a vulnerability](https://github.com/klarlabs-studio/axi-go/security/advisories/new) button on the Security tab
-2. **Email**: Include as much detail as possible — minimal reproduction, affected versions, impact assessment
+1. **GitHub Security Advisories** (preferred): Use the
+   [Report a vulnerability](https://github.com/klarlabs-studio/axi-go/security/advisories/new)
+   button on the Security tab.
+
+Email is not currently a monitored channel for this repository; use
+GitHub private reporting.
 
 ### What to include
 
@@ -40,10 +44,12 @@ Instead, report privately via one of these channels:
 
 - **Zero external dependencies** — minimizes supply chain attack surface
 - **GitHub Actions pinned to commit SHAs** — prevents mutable tag attacks
-- **govulncheck in CI** — scans for known Go vulnerabilities on every PR
-- **CodeQL analysis** — static analysis for common vulnerability patterns
-- **Race detector in CI** — catches concurrency bugs that could lead to security issues
-- **Dependabot** — automated dependency updates for tooling (gomod, GitHub Actions)
+- **nox security scan + remediation** — taint analysis and automated
+  dependency/action remediation (`.github/workflows/nox-remediate.yml`)
+- **govulncheck** — via shared Go CI / release path
+- **Race detector** — exercised in tests and release CI
+- **Cosign keyless** — SBOM signing on GitHub Releases (OIDC)
+- **Warden / provenance** — supply-chain provenance workflow in tree
 
 ## Hall of fame
 

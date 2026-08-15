@@ -12,6 +12,11 @@ type CompositionService struct {
 	actionRepo     ActionRepository
 	capabilityRepo CapabilityRepository
 	pluginRepo     PluginRepository
+	// lifecycles retains LifecyclePlugin instances so Close can run on
+	// deregister. Only plugins registered via RegisterPlugin /
+	// RegisterPluginWithConfig appear here; RegisterContribution alone
+	// has no plugin instance to close.
+	lifecycles map[PluginID]LifecyclePlugin
 }
 
 // ActionRepository is the port interface for action definition storage.
@@ -54,37 +59,67 @@ func NewCompositionService(
 		actionRepo:     actionRepo,
 		capabilityRepo: capabilityRepo,
 		pluginRepo:     pluginRepo,
+		lifecycles:     make(map[PluginID]LifecyclePlugin),
 	}
 }
 
 // RegisterBundle atomically registers a plugin's contribution and its executor
 // implementations. This is the preferred registration method as it validates
 // that all executor refs have matching implementations before persisting anything.
+//
+// Executors are registered first so a concurrent Execute cannot observe
+// unbound actions; if contribution registration fails, previously registered
+// executors from this bundle are rolled back via Unregister when the lookup
+// registries support it.
 func (s *CompositionService) RegisterBundle(
 	bundle *PluginBundle,
 	actionExecReg ActionExecutorLookup,
 	capExecReg CapabilityExecutorLookup,
 ) error {
 	// The bundle constructor already validated ref↔executor pairing.
-	// Register executors first (into the registries).
 	type actionRegistrar interface {
 		Register(ref ActionExecutorRef, executor ActionExecutor)
 	}
 	type capRegistrar interface {
 		Register(ref CapabilityExecutorRef, executor CapabilityExecutor)
 	}
+	type actionUnregistrar interface {
+		Unregister(ref ActionExecutorRef)
+	}
+	type capUnregistrar interface {
+		Unregister(ref CapabilityExecutorRef)
+	}
+
+	var registeredActions []ActionExecutorRef
+	var registeredCaps []CapabilityExecutorRef
+
 	if reg, ok := actionExecReg.(actionRegistrar); ok {
 		for ref, exec := range bundle.ActionExecutors {
 			reg.Register(ref, exec)
+			registeredActions = append(registeredActions, ref)
 		}
 	}
 	if reg, ok := capExecReg.(capRegistrar); ok {
 		for ref, exec := range bundle.CapabilityExecutors {
 			reg.Register(ref, exec)
+			registeredCaps = append(registeredCaps, ref)
 		}
 	}
 
-	return s.RegisterContribution(bundle.Contribution)
+	if err := s.RegisterContribution(bundle.Contribution); err != nil {
+		if ureg, ok := actionExecReg.(actionUnregistrar); ok {
+			for _, ref := range registeredActions {
+				ureg.Unregister(ref)
+			}
+		}
+		if ureg, ok := capExecReg.(capUnregistrar); ok {
+			for _, ref := range registeredCaps {
+				ureg.Unregister(ref)
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 // RegisterPlugin accepts a Plugin, optionally initializes it with config,
@@ -95,6 +130,7 @@ func (s *CompositionService) RegisterPlugin(plugin Plugin) error {
 
 // RegisterPluginWithConfig accepts a Plugin with configuration.
 // If the plugin implements LifecyclePlugin, Init(config) is called before Contribute().
+// On successful registration the LifecyclePlugin is retained so Close runs on deregister.
 func (s *CompositionService) RegisterPluginWithConfig(plugin Plugin, config PluginConfig) error {
 	if lp, ok := plugin.(LifecyclePlugin); ok {
 		if err := lp.Init(config); err != nil {
@@ -105,7 +141,15 @@ func (s *CompositionService) RegisterPluginWithConfig(plugin Plugin, config Plug
 	if err != nil {
 		return fmt.Errorf("plugin contribution failed: %w", err)
 	}
-	return s.RegisterContribution(contribution)
+	if err := s.RegisterContribution(contribution); err != nil {
+		return err
+	}
+	if lp, ok := plugin.(LifecyclePlugin); ok {
+		s.mu.Lock()
+		s.lifecycles[contribution.PluginID()] = lp
+		s.mu.Unlock()
+	}
+	return nil
 }
 
 // RegisterContribution validates, detects conflicts, persists, and activates a contribution.
@@ -175,6 +219,9 @@ func (s *CompositionService) RegisterContribution(contribution *PluginContributi
 }
 
 // DeregisterPlugin removes a plugin and all its contributed actions and capabilities.
+// If the plugin was registered as a LifecyclePlugin, Close is invoked after the
+// contribution is removed from the repositories. A Close error is returned after
+// deregistration completes so callers still observe a clean registry.
 func (s *CompositionService) DeregisterPlugin(id PluginID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -191,5 +238,15 @@ func (s *CompositionService) DeregisterPlugin(id PluginID) error {
 		_ = s.capabilityRepo.Delete(c.Name())
 	}
 
-	return s.pluginRepo.Delete(id)
+	if err := s.pluginRepo.Delete(id); err != nil {
+		return err
+	}
+
+	if lp, ok := s.lifecycles[id]; ok {
+		delete(s.lifecycles, id)
+		if closeErr := lp.Close(); closeErr != nil {
+			return fmt.Errorf("plugin %q deregistered but Close failed: %w", id, closeErr)
+		}
+	}
+	return nil
 }

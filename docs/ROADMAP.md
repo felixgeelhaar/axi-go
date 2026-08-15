@@ -1,55 +1,52 @@
 # Roadmap and versioning policy
 
 This document is the contract between axi-go and its users about stability,
-change, and what "1.0" means. If you're evaluating axi-go for a production
+change, and what "1.x" means. If you're evaluating axi-go for a production
 dependency, read this first.
 
 ---
 
-## Current status: pre-1.0
+## Current status: 1.x (post-1.0)
 
-axi-go is in active development. The public API has changed and will change
-again before 1.0. Every breaking change is annotated in
-[CHANGELOG.md](../CHANGELOG.md) with a `BREAKING` tag and is preceded by
-a commit whose message starts with `feat!:`. Users pinning to a specific
-pre-1.0 tag can upgrade at their own pace.
+axi-go shipped `v1.0.0` and has continued with additive and occasional
+breaking minor/patch tags through **v1.4.0** (module path migration). The
+project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
+and the deprecation policy below. Breaking changes are annotated in
+[CHANGELOG.md](../CHANGELOG.md) with a `BREAKING` tag and are typically
+preceded by a commit message starting with `feat!:` or `fix!:`.
+
+Latest released tag on the line of this document: see Git tags /
+[CHANGELOG.md](../CHANGELOG.md). Unreleased hardening on `main` is listed
+under `[Unreleased]`.
 
 ---
 
-## What 1.0 means
+## 1.0 checklist (historical)
 
-1.0 is the point at which axi-go commits to
-[Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html). A user
-who depends on `v1.x.y` can upgrade to any later `v1.*.*` without expecting
-source-level breakage.
+These were the gates for the first stable tag. Status reflects current
+practice, not a remaining pre-release blocker:
 
-To reach 1.0, axi-go must meet all of:
-
-- [x] **API stability:** every exported type, function, and method in the
-      `axi`, `domain`, `application`, `inmemory`, `jsonstore`, and `toon`
-      packages is either frozen for 1.x or explicitly marked
-      `// Deprecated:` with a defined removal schedule. As of the 1.0
-      audit, no names are marked `// Deprecated:` — the entire exported
-      surface is frozen for 1.x.
-- [x] **Godoc completeness:** every exported name carries a narrative
-      doc comment, and at least one `Example*` function exists for every
-      top-level API surface (`Kernel.Execute`, `Kernel.Help`,
-      `Kernel.ListActionSummaries`, `toon.Encode`, `axi.Truncate`,
-      `domain.Pipeline`).
-- [ ] **Persistence schema frozen:** `SessionSnapshot.Schema == "1"` is
-      treated as the 1.x persistence format. Future incompatible changes
-      bump the schema and ship with a documented migration.
-- [ ] **CI quality floor:** fmt + lint + vet + race + fuzz-smoke + govulncheck
-      + coverage gate (currently 60%) all green.
-- [ ] **Security posture:** SECURITY.md reflects current practice, release
-      workflow signs artifacts with cosign keyless, SBOM attached to every
-      GitHub Release.
-- [x] **Adoption signal:** the rationale path was taken. v1.0.0 ships
-      without a public external-adoption claim; the decision and
-      reasoning are captured in the "Adoption note for v1.0.0" section
-      of [CHANGELOG.md](../CHANGELOG.md).
-
-When all six are checked, the next tag is `v1.0.0`.
+- [x] **API stability:** exported surface in `axi`, `domain`, `application`,
+      `inmemory`, `jsonstore`, and `toon` is under SemVer; deprecations use
+      `// Deprecated:` with the policy below.
+- [x] **Godoc completeness:** narrative docs + `Example*` for top-level
+      surfaces (`Kernel.Execute`, `Kernel.Help`, `Kernel.ListActionSummaries`,
+      `toon.Encode`, `axi.Truncate`, `domain.Pipeline`).
+- [x] **Persistence schema:** `SessionSnapshot.Schema == "1"`
+      (`CurrentSessionSchema`). Empty schema loads as legacy. Unknown
+      non-empty schemas are rejected. Future incompatible formats bump the
+      schema and ship with a documented migration.
+- [x] **CI quality floor:** shared Go CI runs fmt/lint/vet/build/test
+      (race on release path) + nox security. **Coverage gate is currently
+      disabled** in `.github/workflows/ci.yml` (`coverage: false`);
+      re-enable when the shared workflow threshold is ready. Fuzz for
+      `toon.Encode` runs on a weekly schedule (not nightly).
+- [x] **Security posture:** cosign keyless SBOM signing on release; nox
+      remediation replaces Dependabot; provenance/warden workflows in
+      tree. See [SECURITY.md](../.github/SECURITY.md) and
+      [SECURITY-SETUP.md](SECURITY-SETUP.md).
+- [x] **Adoption signal:** rationale path documented in the v1.0.0
+      CHANGELOG section.
 
 ---
 
@@ -66,9 +63,8 @@ Post-1.0, a MAJOR version bump is required whenever any of these changes:
 - **Persistence schema** in any snapshot format. A schema bump is always
   a MAJOR change and ships with a documented migration path.
 - **Default adapter behavior** when it would silently break users on
-  upgrade. Example: changing `inmemory.NewSequentialIDGenerator` to emit
-  UUIDs instead of `session-N` would break any tests that match session
-  ids — MAJOR.
+  upgrade. Example: changing the default session ID generator scheme
+  (as with UUIDv7 vs `session-N`) is breaking for tests that match IDs.
 - **Tightening** a previously permissive contract. If `Kernel.Execute`
   starts rejecting inputs it used to accept, that's breaking even if the
   rejection is "correct."
@@ -99,56 +95,22 @@ From 1.0 onwards:
 4. Removals happen only in MAJOR releases (i.e. `v2.0.0`) — never in a
    MINOR or PATCH release.
 
-During pre-1.0, this policy is aspirational. Breaking changes may land
-between minor tags as the API continues to shake out.
-
 ---
 
-## Out of scope for 1.0
+## Out of scope for core (intentional)
 
-Features that have been considered and deferred past 1.0:
-
-- **Streaming `ExecutionResult`.** ~~Current result is all-or-nothing.
-  MCP 2025-06-18 supports streaming via SSE; a future iteration may add
-  `StreamingActionExecutor` without breaking the synchronous path.~~
-  Landed for 1.1 as an optional `StreamingActionExecutor` interface
-  alongside `ActionExecutor`. Executors that can stream implement both;
-  the kernel prefers `ExecuteStream` when available and the session
-  accumulates `ResultChunk` value objects with monotonic indices under
-  the aggregate mutex. Each chunk raises a `ResultChunkEmitted` domain
-  event — HTTP/SSE, gRPC-stream, and MCP-SSE adapters subscribe via
-  the observability port for live delivery.
-- **Distributed sagas.** Pipeline compensation is in-process only. Full
-  sagas across service boundaries require a durable event log and
-  at-least-once semantics the library does not provide. As of axi-go
-  1.2 the kernel exposes `ActionInvoker` and
-  `OrchestratorActionExecutor` so a saga engine can ship as a plugin —
-  a plugin module contributes `saga.*` actions that use the kernel's
-  lifecycle for each step and keeps its durable-log backend (Postgres
-  outbox, Kafka, in-memory) out of axi-go core.
-- **Evidence integrity.** ~~Plugins can currently forge
-  `EvidenceRecord.TokensUsed`. A future release may hash-chain evidence
-  or require a kernel-signed origin.~~ Landed for 1.1 as a
-  tamper-evident SHA-256 hash chain on `ExecutionSession.Evidence`.
-  Each `EvidenceRecord` now carries `Hash` and `PreviousHash` fields,
-  populated by the aggregate at `AppendEvidence` time; call
-  `session.VerifyEvidenceChain()` to detect post-emission mutation.
-  Emission-time honesty (plugins reporting `TokensUsed` truthfully)
-  remains the documented trust boundary — see
+- **Distributed sagas.** Pipeline compensation is in-process only. As of
+  1.2 the kernel exposes `ActionInvoker` / `OrchestratorActionExecutor`
+  so a saga engine can ship as a plugin with its own durable log.
+- **Emission-time evidence honesty.** The SHA-256 evidence hash chain
+  detects post-emission tampering; plugins can still report untruthful
+  `TokensUsed` at emit time — documented trust boundary in
   [CONCEPTS.md](CONCEPTS.md).
-- **Observability ports.** ~~A `MetricsReporter` port analogous to
-  `Logger` is on the list but not in the 1.0 critical path.~~
-  Landed for 1.1 as `domain.DomainEventPublisher`. The port emits
-  domain events (SessionStarted, CapabilityInvoked, BudgetExceeded,
-  EvidenceRecorded, …) rather than pre-classified metrics — adapters
-  decide whether each event becomes a Prometheus counter, an
-  OpenTelemetry span event, or a log line. Strict-DDD shape: events
-  are immutable value objects raised by the `ExecutionSession`
-  aggregate and drained by the application service. See
-  [CHANGELOG.md](../CHANGELOG.md) Unreleased section.
-- **MCP adapter as a package.** `example/mcp-server/` will stay as an
-  example. Users copy-paste it or vendor it; axi-go itself will not
-  import an MCP schema.
+- **MCP adapter as a package.** `example/mcp-server/` stays an example
+  (copy/vendor; no stability guarantee from axi-go itself).
+- **Vendor metrics clients.** Use `DomainEventPublisher` adapters
+  (`example/observability/`) rather than importing Prometheus/OTel into
+  core.
 
 ---
 
@@ -160,5 +122,4 @@ Features that have been considered and deferred past 1.0:
 - Security advisories are published via GitHub Security Advisories per
   [SECURITY.md](../.github/SECURITY.md).
 
-Feedback on this roadmap — especially on the 1.0 checklist — is
-welcome as a GitHub issue.
+Feedback on this roadmap is welcome as a GitHub issue.

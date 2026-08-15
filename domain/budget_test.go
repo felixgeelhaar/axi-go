@@ -186,3 +186,29 @@ func TestBudgetEnforcer_NoBudget(t *testing.T) {
 		t.Errorf("expected Succeeded with no budget, got %s", session.Status())
 	}
 }
+
+func TestDefaultBudget_WithTimeoutStyleMerge(t *testing.T) {
+	execSvc, _, _, _, _ := setupExecution(t)
+	execSvc.SetDefaultBudget(domain.ExecutionBudget{
+		MaxCapabilityInvocations: 7,
+		MaxTokens:                99,
+		MaxRetries:               2,
+	})
+	b := execSvc.DefaultBudget()
+	b.MaxDuration = 3 * time.Second
+	execSvc.SetDefaultBudget(b)
+
+	got := execSvc.DefaultBudget()
+	if got.MaxCapabilityInvocations != 7 {
+		t.Errorf("MaxCapabilityInvocations = %d, want 7", got.MaxCapabilityInvocations)
+	}
+	if got.MaxTokens != 99 {
+		t.Errorf("MaxTokens = %d, want 99", got.MaxTokens)
+	}
+	if got.MaxRetries != 2 {
+		t.Errorf("MaxRetries = %d, want 2", got.MaxRetries)
+	}
+	if got.MaxDuration != 3*time.Second {
+		t.Errorf("MaxDuration = %v, want 3s", got.MaxDuration)
+	}
+}

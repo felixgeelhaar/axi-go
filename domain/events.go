@@ -93,6 +93,22 @@ func (e SessionAwaitingApproval) OccurredAt() time.Time { return e.At }
 // EventType returns "session.awaiting_approval".
 func (SessionAwaitingApproval) EventType() string { return "session.awaiting_approval" }
 
+// SessionApproved is raised when an ExecutionSession transitions from
+// AwaitingApproval to Running via Approve — i.e. when a human (or
+// policy principal) authorises a write-external action to proceed.
+type SessionApproved struct {
+	SessionID  ExecutionSessionID
+	ActionName ActionName
+	Principal  string
+	At         time.Time
+}
+
+// OccurredAt returns the event's wall-clock time.
+func (e SessionApproved) OccurredAt() time.Time { return e.At }
+
+// EventType returns "session.approved".
+func (SessionApproved) EventType() string { return "session.approved" }
+
 // SessionCompleted is raised when an ExecutionSession reaches a terminal
 // state (Succeeded, Failed, or Rejected). Duration is measured from the
 // SessionStarted event.
