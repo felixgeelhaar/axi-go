@@ -8,6 +8,13 @@ releases; those are annotated with `BREAKING` below.
 
 ## [Unreleased]
 
+### Added
+
+- **`example/saga/`** — reference "sagas as plugin" adopter pattern:
+  in-process outbox (durable log stays outside axi-go), `saga.run`
+  `OrchestratorActionExecutor`, and fail-closed handling when a nested
+  `write-external` leaf pauses at `awaiting_approval`.
+
 ### Changed — BREAKING
 
 - **Default session IDs are UUIDv7** — `axi.New()` now defaults to

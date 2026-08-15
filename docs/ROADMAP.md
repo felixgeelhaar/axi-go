@@ -101,7 +101,8 @@ From 1.0 onwards:
 
 - **Distributed sagas.** Pipeline compensation is in-process only. As of
   1.2 the kernel exposes `ActionInvoker` / `OrchestratorActionExecutor`
-  so a saga engine can ship as a plugin with its own durable log.
+  so a saga engine can ship as a plugin with its own durable log. See
+  [`example/saga/`](../example/saga/) for a fail-closed reference.
 - **Emission-time evidence honesty.** The SHA-256 evidence hash chain
   detects post-emission tampering; plugins can still report untruthful
   `TokensUsed` at emit time — documented trust boundary in
